@@ -1,0 +1,183 @@
+// 商品管理系统 - JS宏代码（WPS版本）
+// 请将此代码复制到WPS的JS宏编辑器中
+
+// 自动运行函数（文档打开时执行）
+function autoOpen() {
+    // 直接执行，不使用setTimeout
+    autoResizeImages();
+}
+
+// 自动调整所有图片大小
+function autoResizeImages() {
+    try {
+        // 获取当前工作表
+        var sheet = Application.ActiveSheet;
+        
+        // 设置目标尺寸（缩略图大小）
+        var targetWidth = 80;
+        var targetHeight = 60;
+        
+        // 获取所有图片
+        var shapes = sheet.Shapes;
+        var count = shapes.Count;
+        
+        // 遍历所有图片
+        for (var i = 1; i <= count; i++) {
+            var shape = shapes.Item(i);
+            
+            // 检查是否为图片
+            if (shape.Type === 13) { // msoPicture = 13
+                // 保持宽高比缩放
+                var ratio = Math.min(targetWidth / shape.Width, targetHeight / shape.Height);
+                
+                // 调整图片大小
+                shape.Width = shape.Width * ratio;
+                shape.Height = shape.Height * ratio;
+                
+                // 设置图片属性
+                shape.Placement = 1; // xlMoveAndSize = 1
+                shape.Locked = false;
+                
+                // 自适应行高（图片高度 + 边距）
+                adaptRowHeight(sheet, shape);
+            }
+        }
+        
+        alert("图片自动缩放完成！行高已自适应调整。");
+        
+    } catch (error) {
+        alert("执行出错: " + error.message);
+    }
+}
+
+// 自适应行高（图片高度 + 边距）
+function adaptRowHeight(sheet, shape) {
+    try {
+        // 获取图片所在的行
+        var row = Math.floor(shape.Top / 15) + 1; // 估算行号（15是默认行高）
+        
+        // 确保行号在有效范围内
+        if (row < 1) row = 1;
+        
+        // 调整行高（图片高度 + 边距）
+        var newRowHeight = shape.Height + 10; // 加10像素边距
+        if (newRowHeight < 20) newRowHeight = 20; // 最小行高
+        if (newRowHeight > 200) newRowHeight = 200; // 最大行高
+        
+        sheet.Rows(row).RowHeight = newRowHeight;
+        
+    } catch (error) {
+        // 静默处理错误，不影响主要功能
+        console.log("调整行高失败: " + error.message);
+    }
+}
+
+// 恢复图片原始尺寸
+function restoreOriginalSize() {
+    try {
+        var sheet = Application.ActiveSheet;
+        var shapes = sheet.Shapes;
+        var count = shapes.Count;
+        
+        for (var i = 1; i <= count; i++) {
+            var shape = shapes.Item(i);
+            
+            if (shape.Type === 13) { // msoPicture = 13
+                // 恢复为较大尺寸
+                shape.Width = 200;
+                shape.Height = 150;
+                
+                // 重新调整行高
+                adaptRowHeight(sheet, shape);
+            }
+        }
+        
+        alert("图片已恢复较大尺寸！行高已重新调整。");
+        
+    } catch (error) {
+        alert("恢复尺寸失败: " + error.message);
+    }
+}
+
+// 手动运行图片缩放（用于测试）
+function runImageResize() {
+    autoResizeImages();
+}
+
+// 简化的图片缩放函数（用于测试）
+function simpleResize() {
+    try {
+        var sheet = Application.ActiveSheet;
+        var shapes = sheet.Shapes;
+        var count = shapes.Count;
+        
+        var resizedCount = 0;
+        
+        for (var i = 1; i <= count; i++) {
+            var shape = shapes.Item(i);
+            
+            if (shape.Type === 13) { // msoPicture = 13
+                // 简单缩放为固定尺寸
+                shape.Width = 80;
+                shape.Height = 60;
+                
+                // 自适应行高
+                adaptRowHeight(sheet, shape);
+                
+                resizedCount++;
+            }
+        }
+        
+        alert("成功缩放 " + resizedCount + " 张图片！行高已自适应调整。");
+        
+    } catch (error) {
+        alert("缩放失败: " + error.message);
+    }
+}
+
+// 手动调整行高
+function adjustAllRowHeights() {
+    try {
+        var sheet = Application.ActiveSheet;
+        var shapes = sheet.Shapes;
+        var count = shapes.Count;
+        
+        var adjustedCount = 0;
+        
+        for (var i = 1; i <= count; i++) {
+            var shape = shapes.Item(i);
+            
+            if (shape.Type === 13) { // msoPicture = 13
+                // 自适应行高
+                adaptRowHeight(sheet, shape);
+                adjustedCount++;
+            }
+        }
+        
+        alert("成功调整 " + adjustedCount + " 个行的行高！");
+        
+    } catch (error) {
+        alert("调整行高失败: " + error.message);
+    }
+}
+
+// ========================================
+// 使用说明：
+// ========================================
+// 1. 在WPS中按Alt+F8打开宏对话框
+// 2. 选择"创建"创建新宏
+// 3. 将上述代码粘贴到宏编辑器中
+// 4. 保存宏
+// 5. 运行以下函数之一：
+//    - simpleResize() - 简单缩放（推荐先测试）
+//    - autoResizeImages() - 完整功能
+//    - autoOpen() - 自动运行
+//    - adjustAllRowHeights() - 仅调整行高
+// 
+// 注意：
+// - 确保WPS启用了宏功能
+// - 建议先运行 simpleResize() 测试基本功能
+// - 如果出错，检查图片是否存在于工作表中
+// - WPS JS宏环境与标准JavaScript有所不同
+// - 列宽已由Python端自动处理，JS宏只负责行高调整
+// - 图片缩放功能保持不变，确保缩略图效果
