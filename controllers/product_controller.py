@@ -10,7 +10,8 @@ from services.export_service import ExportService
 import logging
 
 # 使用主应用的日志配置
-logger = logging.getLogger(__name__)
+from logging_config import get_logger
+logger = get_logger(__name__)
 
 # 创建导出服务实例
 export_service = ExportService()
@@ -44,8 +45,31 @@ def get_products():
         search = request.args.get('search', '')
         
         result = Product.find_all(page, per_page, search)
-        return jsonify(result)
+        logger.info(f"获取商品列表: total={result.get('total')}, page={page}, per_page={per_page}")
+
+        if not result or 'products' not in result:
+            return jsonify({'success': False, 'message': '数据为空或格式不正确'})
+
+        products = result['products']
+
+        # 使用模型提供的 to_dict 进行序列化
+        products_data = [p.to_dict() if hasattr(p, 'to_dict') else p for p in products]
+
+        # 构建与前端期望一致的结构
+        response_data = {
+            'success': True,
+            'data': {
+                'products': products_data,
+                'page': page,
+                'total_pages': result.get('total_pages', 1)
+            }
+        }
+
+        return jsonify(response_data)
     except Exception as e:
+        logger.error(f'获取商品列表失败: {str(e)}')
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'message': f'获取失败: {str(e)}'})
 
 @product_bp.route('/delete', methods=['POST'])
@@ -90,18 +114,21 @@ def export_products():
         
         logger.info(f"获取到 {len(products)} 条商品数据")
         
-        # 转换为字典格式
+        # 转换为字典格式，确保所有数据都是JSON可序列化的
         products_data = []
         for product in products:
-            products_data.append({
-                'id': product.id,
-                'name': product.name,
-                'price': product.price,
-                'quantity': product.quantity,
-                'spec': product.spec,
-                'image_path': product.image_path,
-                'create_time': str(product.create_time)
-            })
+            # 检查product是否为Product对象，如果是则转换为字典
+            if hasattr(product, '__dict__'):
+                product_dict = product.__dict__.copy()
+                # 移除SQLAlchemy内部属性
+                product_dict.pop('_sa_instance_state', None)
+                # 确保datetime对象转换为字符串
+                if 'create_time' in product_dict and product_dict['create_time']:
+                    product_dict['create_time'] = str(product_dict['create_time'])
+                products_data.append(product_dict)
+            else:
+                # 如果已经是字典，直接使用
+                products_data.append(product)
         
         logger.info(f"转换后的数据: {products_data[:2]}...")  # 显示前两条数据
         

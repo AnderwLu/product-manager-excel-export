@@ -15,12 +15,14 @@ import logging
 from datetime import datetime
 from io import BytesIO
 import openpyxl
+import time
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from PIL import Image
 
 # 使用主应用的日志配置
-logger = logging.getLogger(__name__)
+from logging_config import get_logger
+logger = get_logger(__name__)
 
 class ExportService:
     """导出服务类"""
@@ -302,8 +304,17 @@ class ExportService:
         for temp_file in temp_files:
             try:
                 if os.path.exists(temp_file):
-                    os.remove(temp_file)
-                    logger.info(f"已清理临时文件: {temp_file}")
+                    # 加入重试，解决 WinError 32 句柄占用
+                    for attempt in range(5):
+                        try:
+                            os.remove(temp_file)
+                            logger.info(f"已清理临时文件: {temp_file}")
+                            break
+                        except PermissionError as pe:
+                            logger.warning(f"第{attempt+1}次删除失败(可能句柄占用): {pe}")
+                            time.sleep(0.6)
+                        except Exception:
+                            raise
             except Exception as e:
                 logger.error(f"清理临时文件失败 {temp_file}: {str(e)}")
         
@@ -328,16 +339,23 @@ class ExportService:
             safe_path = template_path.replace("\\", "\\\\")
             logger.info(f"安全路径: {safe_path}")
             
-                         vbs_script = f'''
+            vbs_script = f'''
 Set objExcel = CreateObject("Excel.Application")
 objExcel.Visible = False
 objExcel.DisplayAlerts = False
-objExcel.ScreenUpdating = False
-objExcel.Calculation = xlCalculationManual
 
 Set objWorkbook = objExcel.Workbooks.Open("{safe_path}")
-objExcel.Run "BeautifySheet"
-WScript.Sleep 500
+
+On Error Resume Next
+objExcel.Run objWorkbook.Name & "!BeautifySheet"
+If Err.Number <> 0 Then
+    WScript.Echo "Run macro error: " & Err.Description
+    Err.Clear
+End If
+On Error GoTo 0
+
+' 等待宏执行完成
+WScript.Sleep 3000
 objWorkbook.Save
 objWorkbook.Close False
 objExcel.Quit
@@ -354,7 +372,8 @@ objExcel.Quit
             logger.info(f"VBS文件写入完成")
 
             logger.info(f"开始执行VBS脚本...")
-            result = subprocess.run(['cscript', '//NoLogo', vbs_path], shell=True, timeout=30, capture_output=True, text=True)
+            # 适当增大超时时间，确保宏有足够时间执行
+            result = subprocess.run(['cscript', '//NoLogo', vbs_path], shell=True, timeout=60, capture_output=True, text=True)
             logger.info(f"VBS执行返回码: {result.returncode}")
             logger.info(f"VBS执行输出: {result.stdout}")
             logger.info(f"VBS执行错误: {result.stderr}")
@@ -362,7 +381,11 @@ objExcel.Quit
             os.remove(vbs_path)
             logger.info(f"VBS文件已删除")
 
-            logger.info("✓ VBA宏执行完成")
+            # 检查执行结果
+            if result.returncode != 0 or (result.stdout and "Run macro error" in result.stdout):
+                logger.warning("VBA脚本可能未完全执行，已继续导出为xlsx")
+            else:
+                logger.info("✓ VBA宏执行完成")
 
         except Exception as e:
             logger.error(f"❌ Windows VBA宏执行失败: {str(e)}")
