@@ -1,0 +1,302 @@
+# -*- coding: utf-8 -*-
+"""
+导出服务 (跨平台版本)
+Windows: 写入模板 + 调用宏美化 → 导出xlsx
+Mac/Linux: 写入模板 → 保留xlsm，用户打开时宏自动运行
+"""
+
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+import os
+import tempfile
+import shutil
+from datetime import datetime
+import platform
+import subprocess
+from io import BytesIO
+from PIL import Image
+
+class ExportService:
+    """导出服务类"""
+
+    def __init__(self):
+        self.template_path = 'templates/product_template.xlsm'
+
+    def export_to_excel(self, products_data, selected_columns):
+        """导出商品数据"""
+        try:
+            # 1. 写入数据到模板
+            temp_template_path = self._write_data_to_template(products_data, selected_columns)
+
+            # 2. 根据平台执行不同逻辑
+            system_type = platform.system()
+            if system_type == 'Windows':
+                final_excel_data = self._export_windows(temp_template_path)
+            else:
+                final_excel_data = self._export_mac_linux(temp_template_path)
+
+            # 3. 清理临时文件
+            if os.path.exists(temp_template_path):
+                os.remove(temp_template_path)
+
+            return final_excel_data
+
+        except Exception as e:
+            print(f"导出失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def _export_windows(self, template_path):
+        """Windows系统导出逻辑"""
+        try:
+            print("Windows系统：执行VBA宏美化...")
+            # 调用VBA宏
+            self._trigger_vba_macro(template_path)
+            # 导出为无宏xlsx
+            final_excel_data = self._export_to_xlsx_no_macro(template_path)
+            print("✓ Windows导出完成")
+            return final_excel_data
+        except Exception as e:
+            print(f"Windows导出失败: {str(e)}")
+            raise
+
+    def _export_mac_linux(self, template_path):
+        """Mac/Linux系统导出逻辑"""
+        try:
+            print("Mac/Linux系统：保留xlsm格式，宏在用户打开时自动执行...")
+            # 直接返回xlsm文件内容
+            with open(template_path, "rb") as f:
+                final_excel_data = f.read()
+            print("✓ Mac/Linux导出完成")
+            return final_excel_data
+        except Exception as e:
+            print(f"Mac/Linux导出失败: {str(e)}")
+            raise
+
+    def _write_data_to_template(self, products_data, selected_columns):
+        """将数据写入模板"""
+        temp_dir = tempfile.gettempdir()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        temp_template_path = os.path.join(temp_dir, f'temp_template_{timestamp}.xlsm')
+
+        shutil.copy2(self.template_path, temp_template_path)
+        workbook = openpyxl.load_workbook(temp_template_path, keep_vba=True)
+
+        # 找表
+        if '商品信息模板' in workbook.sheetnames:
+            worksheet = workbook['商品信息模板']
+        else:
+            worksheet = workbook.active
+
+        # 清空数据
+        self._clear_worksheet_data(worksheet)
+
+        # 写入表头
+        for col_idx, column in enumerate(selected_columns, 1):
+            cell = worksheet.cell(row=1, column=col_idx)
+            cell.value = self._get_column_display_name(column)
+            self._apply_header_style(cell)
+
+        # 写入数据
+        for row_idx, product in enumerate(products_data, 2):
+            for col_idx, column in enumerate(selected_columns, 1):
+                if column == 'image':
+                    # 图片列：插入实际图片
+                    print(f"处理第{row_idx}行图片列，图片路径: {product.get('image_path', '')}")
+                    self._insert_image_to_cell(worksheet, row_idx, col_idx, product.get('image_path', ''))
+                    # 设置行高以适应图片
+                    worksheet.row_dimensions[row_idx].height = 60
+                else:
+                    # 其他列：写入文本值
+                    cell = worksheet.cell(row=row_idx, column=col_idx)
+                    cell.value = self._get_product_value(product, column)
+                    self._apply_data_style(cell)
+
+        # 调整列宽
+        self._adjust_column_widths(worksheet, selected_columns)
+
+        workbook.save(temp_template_path)
+        workbook.close()
+
+        print(f"✓ 数据已写入模板: {temp_template_path}")
+        return temp_template_path
+
+    def _insert_image_to_cell(self, worksheet, row, col, image_path):
+        """在指定单元格插入图片"""
+        try:
+            if not image_path:
+                print(f"图片路径为空")
+                return
+            
+            # 获取图片文件完整路径
+            if os.path.isabs(image_path):
+                full_image_path = image_path
+            else:
+                # 相对路径，从uploads目录查找
+                full_image_path = os.path.join('uploads', image_path)
+            
+            print(f"尝试查找图片: {full_image_path}")
+            print(f"当前工作目录: {os.getcwd()}")
+            print(f"uploads目录内容: {os.listdir('uploads') if os.path.exists('uploads') else 'uploads目录不存在'}")
+            
+            if not os.path.exists(full_image_path):
+                print(f"图片文件不存在: {full_image_path}")
+                # 尝试其他可能的路径
+                alt_paths = [
+                    os.path.join(os.getcwd(), 'uploads', image_path),
+                    os.path.join(os.path.dirname(os.getcwd()), 'uploads', image_path),
+                    image_path  # 直接尝试原路径
+                ]
+                
+                for alt_path in alt_paths:
+                    if os.path.exists(alt_path):
+                        full_image_path = alt_path
+                        print(f"找到图片文件: {full_image_path}")
+                        break
+                else:
+                    print(f"所有路径都找不到图片: {image_path}")
+                    return
+            
+            print(f"正在插入图片: {full_image_path}")
+            
+            # 调整图片大小
+            img = Image.open(full_image_path)
+            # 缩放到合适大小
+            img.thumbnail((80, 60), Image.Resampling.LANCZOS)
+            
+            # 保存调整后的图片到临时文件
+            temp_dir = tempfile.gettempdir()
+            temp_img_path = os.path.join(temp_dir, f'temp_img_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
+            img.save(temp_img_path, 'PNG')
+            
+            # 将图片插入到Excel
+            from openpyxl.drawing.image import Image as XLImage
+            excel_img = XLImage(temp_img_path)
+            
+            # 设置图片位置和大小
+            excel_img.width = 80
+            excel_img.height = 60
+            
+            # 将图片放置在单元格附近
+            excel_img.anchor = f'{get_column_letter(col)}{row}'
+            
+            # 添加图片到工作表
+            worksheet.add_image(excel_img)
+            
+            # 清理临时图片文件
+            os.remove(temp_img_path)
+            
+            print(f"✓ 图片已插入到单元格 {get_column_letter(col)}{row}")
+            
+        except Exception as e:
+            print(f"插入图片失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+    def _trigger_vba_macro(self, template_path):
+        """Windows下触发VBA宏"""
+        try:
+            safe_path = template_path.replace("\\", "\\\\")
+            vbs_script = f'''
+Set objExcel = CreateObject("Excel.Application")
+objExcel.Visible = False
+objExcel.DisplayAlerts = False
+
+Set objWorkbook = objExcel.Workbooks.Open("{safe_path}")
+objExcel.Run "AutoResizeImages"
+WScript.Sleep 2000
+objWorkbook.Save
+objWorkbook.Close False
+objExcel.Quit
+'''
+
+            temp_dir = tempfile.gettempdir()
+            vbs_path = os.path.join(temp_dir, f'trigger_macro_{datetime.now().strftime("%Y%m%d_%H%M%S")}.vbs')
+
+            with open(vbs_path, 'w', encoding='utf-8') as f:
+                f.write(vbs_script)
+
+            subprocess.run(['cscript', '//NoLogo', vbs_path], shell=True, timeout=30)
+            os.remove(vbs_path)
+
+            print("✓ VBA宏执行完成")
+
+        except Exception as e:
+            print(f"Windows VBA宏执行失败: {str(e)}")
+
+    def _export_to_xlsx_no_macro(self, template_path):
+        """导出为不带宏的xlsx文件"""
+        workbook = openpyxl.load_workbook(template_path, keep_vba=False)
+        excel_stream = BytesIO()
+        workbook.save(excel_stream)
+        excel_stream.seek(0)
+        excel_data = excel_stream.getvalue()
+        excel_stream.close()
+        workbook.close()
+
+        print(f"✓ 已导出为xlsx格式，数据大小: {len(excel_data)} 字节")
+        return excel_data
+
+    def _clear_worksheet_data(self, worksheet):
+        for row in range(2, worksheet.max_row + 1):
+            for col in range(1, worksheet.max_column + 1):
+                worksheet.cell(row=row, column=col).value = None
+
+    def _get_column_display_name(self, column):
+        mapping = {
+            'name': '商品名称',
+            'price': '价格',
+            'quantity': '数量',
+            'spec': '规格',
+            'image': '图片',
+            'create_time': '创建时间'
+        }
+        return mapping.get(column, column)
+
+    def _get_product_value(self, product, column):
+        try:
+            if column == 'name':
+                return product.get('name', '')
+            elif column == 'price':
+                return f"¥{float(product.get('price', 0) or 0):.2f}"
+            elif column == 'quantity':
+                return str(product.get('quantity', 0) or '0')
+            elif column == 'spec':
+                return product.get('spec', '')
+            elif column == 'image':
+                # 图片列不在这里处理，由_insert_image_to_cell处理
+                return ""
+            elif column == 'create_time':
+                return product.get('create_time', '')
+            else:
+                return str(product.get(column, '') or '')
+        except Exception:
+            return "错误"
+
+    def _apply_header_style(self, cell):
+        cell.font = Font(bold=True, color="FFFFFF", size=12)
+        cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                        top=Side(style='thin'), bottom=Side(style='thin'))
+        cell.border = border
+
+    def _apply_data_style(self, cell):
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                        top=Side(style='thin'), bottom=Side(style='thin'))
+        cell.border = border
+
+    def _adjust_column_widths(self, worksheet, selected_columns):
+        widths = {
+            'name': 25,
+            'price': 15,
+            'quantity': 12,
+            'spec': 20,
+            'image': 30,
+            'create_time': 25
+        }
+        for col_idx, column in enumerate(selected_columns, 1):
+            worksheet.column_dimensions[get_column_letter(col_idx)].width = widths.get(column, 15)

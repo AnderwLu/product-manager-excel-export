@@ -1,0 +1,310 @@
+' ========================================
+' 商品管理系统 - VBA宏代码（Excel版本）
+' ========================================
+' 
+' 使用说明：
+' 1. 在Excel中按Alt+F11打开VBA编辑器
+' 2. 在左侧项目资源管理器中双击"ThisWorkbook"
+' 3. 将Workbook_Open代码粘贴到ThisWorkbook模块中
+' 4. 在左侧项目资源管理器中右键"插入" -> "模块"
+' 5. 将其他函数代码粘贴到新模块中
+' 6. 保存工作簿为.xlsm格式
+' 
+' ========================================
+' 第一部分：ThisWorkbook模块代码
+' ========================================
+' 请将以下代码粘贴到ThisWorkbook模块中
+
+Private Sub Workbook_Open()
+    ' 文件打开时自动运行
+    Call AutoResizeImages
+End Sub
+
+' ========================================
+' 第二部分：标准模块代码
+' ========================================
+' 请将以下代码粘贴到新建的标准模块中
+
+' 自动调整所有图片大小和位置，防止重叠
+Public Sub AutoResizeImages()
+    On Error GoTo ErrorHandler
+    
+    ' 获取当前工作表
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    
+    ' 设置目标尺寸（缩略图大小）
+    Dim targetWidth As Double
+    Dim targetHeight As Double
+    targetWidth = 80
+    targetHeight = 60
+    
+    ' 获取所有图片并按行号排序
+    Dim shp As Shape
+    Dim resizedCount As Integer
+    Dim shapesByRow As Object
+    Set shapesByRow = CreateObject("Scripting.Dictionary")
+    
+    ' 收集所有图片并按行分组
+    For Each shp In ws.Shapes
+        If shp.Type = msoPicture Then
+            Dim rowNum As Long
+            rowNum = shp.TopLeftCell.Row
+            
+            ' 按行号分组图片
+            If Not shapesByRow.Exists(rowNum) Then
+                shapesByRow.Add rowNum, New Collection
+            End If
+            shapesByRow(rowNum).Add shp
+        End If
+    Next shp
+    
+    ' 处理每一行的图片
+    Dim rowKey As Variant
+    For Each rowKey In shapesByRow.Keys
+        Dim rowShapes As Collection
+        Set rowShapes = shapesByRow(rowKey)
+        
+        ' 计算该行需要的总高度
+        Dim totalRowHeight As Double
+        totalRowHeight = 0
+        
+        ' 计算图片总高度和间距
+        Dim i As Integer
+        For i = 1 To rowShapes.Count
+            Dim currentShape As Shape
+            Set currentShape = rowShapes(i)
+            
+            ' 保持宽高比缩放
+            Dim ratio As Double
+            ratio = Application.Min(targetWidth / currentShape.Width, targetHeight / currentShape.Height)
+            
+            ' 调整图片大小
+            currentShape.Width = currentShape.Width * ratio
+            currentShape.Height = currentShape.Height * ratio
+            
+            ' 设置图片属性
+            currentShape.Placement = xlMoveAndSize
+            currentShape.Locked = False
+            
+            ' 累加图片高度
+            totalRowHeight = totalRowHeight + currentShape.Height
+        Next i
+        
+        ' 添加图片间距（每张图片之间5像素间距）
+        If rowShapes.Count > 1 Then
+            totalRowHeight = totalRowHeight + (rowShapes.Count - 1) * 5
+        End If
+        
+        ' 添加上下边距
+        totalRowHeight = totalRowHeight + 10
+        
+        ' 设置行高（转换为Excel行高单位）
+        Dim excelRowHeight As Double
+        excelRowHeight = (totalRowHeight / 0.75) + 4
+        
+        ' 设置合理的行高范围
+        If excelRowHeight < 20 Then excelRowHeight = 20 ' 最小行高
+        If excelRowHeight > 100 Then excelRowHeight = 100 ' 最大行高
+        
+        ' 应用行高
+        ws.Rows(rowKey).RowHeight = excelRowHeight
+        
+        ' 重新排列该行图片位置，防止重叠
+        Call ArrangeImagesInRow(ws, rowShapes, CLng(rowKey))
+        
+        resizedCount = resizedCount + rowShapes.Count
+    Next rowKey
+    
+    ' 显示完成消息
+    If resizedCount > 0 Then
+        MsgBox "图片自动缩放完成！共处理 " & resizedCount & " 张图片，行高已自适应调整，图片无重叠。", vbInformation, "完成"
+    Else
+        MsgBox "未找到图片，请检查工作表中是否包含图片。", vbInformation, "提示"
+    End If
+    
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "执行出错: " & Err.Description, vbCritical, "错误"
+End Sub
+
+' 重新排列一行中的图片，防止重叠
+Public Sub ArrangeImagesInRow(ws As Worksheet, rowShapes As Collection, rowNum As Long)
+    On Error Resume Next
+    
+    ' 获取行的高度和宽度
+    Dim rowHeight As Double
+    Dim rowWidth As Double
+    rowHeight = ws.Rows(rowNum).RowHeight
+    rowWidth = ws.Columns("A").Width * 26 ' 估算行宽度
+    
+    ' 计算图片起始位置（从行顶部开始）
+    Dim startTop As Double
+    startTop = ws.Rows(rowNum).Top + 2 ' 2像素上边距
+    
+    ' 计算图片起始位置（从A列开始）
+    Dim startLeft As Double
+    startLeft = ws.Columns("A").Left + 2 ' 2像素左边距
+    
+    ' 重新排列图片
+    Dim i As Integer
+    For i = 1 To rowShapes.Count
+        Dim currentShape As Shape
+        Set currentShape = rowShapes(i)
+        
+        ' 设置图片位置
+        currentShape.Top = startTop
+        currentShape.Left = startLeft + (i - 1) * (currentShape.Width + 10) ' 10像素间距
+        
+        ' 确保图片不超出行边界
+        If currentShape.Left + currentShape.Width > startLeft + rowWidth - 20 Then
+            ' 如果图片会超出右边界，换到下一行
+            currentShape.Top = startTop + currentShape.Height + 5
+            currentShape.Left = startLeft
+        End If
+    Next i
+    
+    On Error GoTo 0
+End Sub
+
+' 自适应行高（图片高度 + 边距）
+Public Sub AdaptRowHeight(ws As Worksheet, shp As Shape)
+    On Error Resume Next
+    
+    ' 获取图片所在的行
+    Dim rowNum As Long
+    rowNum = shp.TopLeftCell.Row
+    
+    ' 确保行号在有效范围内
+    If rowNum < 1 Then rowNum = 1
+    If rowNum > ws.Rows.Count Then rowNum = ws.Rows.Count
+    
+    ' 计算新的行高
+    Dim newRowHeight As Double
+    
+    ' 将图片高度从点转换为行高单位
+    ' Excel中：1行高单位 ≈ 0.75点
+    ' 所以：行高 = 图片高度 / 0.75 + 边距
+    newRowHeight = (shp.Height / 0.75) + 4 ' 4像素的边距
+    
+    ' 设置合理的行高范围
+    If newRowHeight < 15 Then newRowHeight = 15 ' 最小行高
+    If newRowHeight > 25 Then newRowHeight = 25 ' 最大行高
+    
+    ' 应用行高
+    ws.Rows(rowNum).RowHeight = newRowHeight
+    
+    ' 调试信息（可选）
+    Debug.Print "行号: " & rowNum & ", 图片高度: " & shp.Height & ", 新行高: " & newRowHeight
+    
+    On Error GoTo 0
+End Sub
+
+' 恢复图片原始尺寸
+Public Sub RestoreOriginalSize()
+    On Error GoTo ErrorHandler
+    
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    
+    Dim shp As Shape
+    Dim restoredCount As Integer
+    restoredCount = 0
+    
+    For Each shp In ws.Shapes
+        If shp.Type = msoPicture Then
+            ' 恢复为较大尺寸
+            shp.Width = 200
+            shp.Height = 150
+            
+            ' 重新调整行高
+            Call AdaptRowHeight(ws, shp)
+            
+            restoredCount = restoredCount + 1
+        End If
+    Next shp
+    
+    If restoredCount > 0 Then
+        MsgBox "图片已恢复较大尺寸！共处理 " & restoredCount & " 张图片，行高已重新调整。", vbInformation, "完成"
+    Else
+        MsgBox "未找到图片。", vbInformation, "提示"
+    End If
+    
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "恢复尺寸失败: " & Err.Description, vbCritical, "错误"
+End Sub
+
+' 手动运行图片缩放（用于测试）
+Public Sub RunImageResize()
+    Call AutoResizeImages
+End Sub
+
+' 简化的图片缩放函数（用于测试）
+Public Sub SimpleResize()
+    On Error GoTo ErrorHandler
+    
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    
+    Dim shp As Shape
+    Dim resizedCount As Integer
+    resizedCount = 0
+    
+    For Each shp In ws.Shapes
+        If shp.Type = msoPicture Then
+            ' 简单缩放为固定尺寸
+            shp.Width = 80
+            shp.Height = 60
+            
+            ' 自适应行高
+            Call AdaptRowHeight(ws, shp)
+            
+            resizedCount = resizedCount + 1
+        End If
+    Next shp
+    
+    If resizedCount > 0 Then
+        MsgBox "成功缩放 " & resizedCount & " 张图片！行高已自适应调整。", vbInformation, "完成"
+    Else
+        MsgBox "未找到图片。", vbInformation, "提示"
+    End If
+    
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "缩放失败: " & Err.Description, vbCritical, "错误"
+End Sub
+
+' 手动调整行高
+Public Sub AdjustAllRowHeights()
+    On Error GoTo ErrorHandler
+    
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    
+    Dim shp As Shape
+    Dim adjustedCount As Integer
+    adjustedCount = 0
+    
+    For Each shp In ws.Shapes
+        If shp.Type = msoPicture Then
+            ' 自适应行高
+            Call AdaptRowHeight(ws, shp)
+            adjustedCount = adjustedCount + 1
+        End If
+    Next shp
+    
+    If adjustedCount > 0 Then
+        MsgBox "成功调整 " & adjustedCount & " 个行的行高！", vbInformation, "完成"
+    Else
+        MsgBox "未找到图片。", vbInformation, "提示"
+    End If
+    
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "调整行高失败: " & Err.Description, vbCritical, "错误"
+End Sub
