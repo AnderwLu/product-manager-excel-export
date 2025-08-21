@@ -6,6 +6,7 @@
 
 from flask import Flask, render_template, send_from_directory
 from controllers.product_controller import product_bp
+from models.product import Product
 import os
 
 def create_app():
@@ -31,6 +32,14 @@ def create_app():
     return app
 
 app = create_app()
+
+# 应用启动时初始化数据库表
+with app.app_context():
+    try:
+        Product.create_table()
+        print("✅ 数据库表初始化成功")
+    except Exception as e:
+        print(f"❌ 数据库表初始化失败: {e}")
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5001)

@@ -25,6 +25,10 @@ class ExportService:
 
     def export_to_excel(self, products_data, selected_columns):
         """导出商品数据"""
+        print(f"\n{'='*50}")
+        print(f"🚀 导出服务开始执行")
+        print(f"{'='*50}")
+        
         temp_files_to_cleanup = []  # 记录需要清理的临时文件
         try:
             print(f"=== 导出开始 ===")
@@ -34,48 +38,69 @@ class ExportService:
             print(f"模板文件存在: {os.path.exists(self.template_path)}")
             
             # 0. 规范化列名（将 image_path 等同于 image）
+            print(f"\n📋 步骤1: 规范化列名")
             normalized_columns = self._normalize_columns(selected_columns)
             print(f"规范化后的列: {normalized_columns}")
 
             # 1. 写入数据到模板
+            print(f"\n📝 步骤2: 写入数据到模板")
             temp_template_path = self._write_data_to_template(products_data, normalized_columns)
             temp_files_to_cleanup.append(temp_template_path)
             print(f"临时模板路径: {temp_template_path}")
 
             # 2. 根据平台执行不同逻辑
+            print(f"\n🖥️ 步骤3: 平台检测和导出")
             system_type = platform.system()
             print(f"当前系统: {system_type}")
             
             if system_type == 'Windows':
+                print(f"🔧 使用Windows导出逻辑")
                 final_excel_data = self._export_windows(temp_template_path)
             else:
+                print(f"🍎 使用Mac/Linux导出逻辑")
                 final_excel_data = self._export_mac_linux(temp_template_path)
 
+            print(f"\n📊 导出结果")
             print(f"最终数据大小: {len(final_excel_data) if final_excel_data else 0} 字节")
             print(f"=== 导出完成 ===")
             return final_excel_data
 
         except Exception as e:
-            print(f"导出失败: {str(e)}")
+            print(f"\n❌ 导出失败: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
         finally:
+            print(f"\n🧹 清理临时文件")
             # 清理所有临时文件
             self._cleanup_temp_files(temp_files_to_cleanup)
+            print(f"{'='*50}")
+            print(f"🏁 导出服务执行结束")
+            print(f"{'='*50}\n")
 
     def _export_windows(self, template_path):
         """Windows系统导出逻辑"""
         try:
-            print("Windows系统：执行VBA宏美化...")
+            print(f"\n🔧 Windows导出逻辑开始")
+            print(f"Windows系统：执行VBA宏美化...")
+            print(f"模板路径: {template_path}")
+            
             # 调用VBA宏
+            print(f"\n📜 步骤3.1: 调用VBA宏")
             self._trigger_vba_macro(template_path)
+            print("VBA宏执行完成，开始转换为xlsx...")
+            
             # 导出为无宏xlsx
+            print(f"\n📊 步骤3.2: 转换为xlsx格式")
             final_excel_data = self._export_to_xlsx_no_macro(template_path)
+            print(f"xlsx转换完成，最终数据大小: {len(final_excel_data)} 字节")
             print("✓ Windows导出完成")
             return final_excel_data
+            
         except Exception as e:
-            print(f"Windows导出失败: {str(e)}")
+            print(f"\n❌ Windows导出失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             raise
 
     def _export_mac_linux(self, template_path):
@@ -291,46 +316,80 @@ class ExportService:
     def _trigger_vba_macro(self, template_path):
         """Windows下触发VBA宏"""
         try:
+            print(f"=== VBA宏执行开始 ===")
+            print(f"模板路径: {template_path}")
+            print(f"模板文件存在: {os.path.exists(template_path)}")
+            
             safe_path = template_path.replace("\\", "\\\\")
+            print(f"安全路径: {safe_path}")
+            
             vbs_script = f'''
 Set objExcel = CreateObject("Excel.Application")
 objExcel.Visible = False
 objExcel.DisplayAlerts = False
 
 Set objWorkbook = objExcel.Workbooks.Open("{safe_path}")
-objExcel.Run "AutoResizeImages"
+objExcel.Run "BeautifySheet"
 WScript.Sleep 2000
 objWorkbook.Save
 objWorkbook.Close False
 objExcel.Quit
 '''
+            print(f"VBS脚本内容:")
+            print(vbs_script)
 
             temp_dir = tempfile.gettempdir()
             vbs_path = os.path.join(temp_dir, f'trigger_macro_{datetime.now().strftime("%Y%m%d_%H%M%S")}.vbs')
+            print(f"VBS文件路径: {vbs_path}")
 
             with open(vbs_path, 'w', encoding='utf-8') as f:
                 f.write(vbs_script)
+            print(f"VBS文件写入完成")
 
-            subprocess.run(['cscript', '//NoLogo', vbs_path], shell=True, timeout=30)
+            print(f"开始执行VBS脚本...")
+            result = subprocess.run(['cscript', '//NoLogo', vbs_path], shell=True, timeout=30, capture_output=True, text=True)
+            print(f"VBS执行返回码: {result.returncode}")
+            print(f"VBS执行输出: {result.stdout}")
+            print(f"VBS执行错误: {result.stderr}")
+            
             os.remove(vbs_path)
+            print(f"VBS文件已删除")
 
             print("✓ VBA宏执行完成")
 
         except Exception as e:
-            print(f"Windows VBA宏执行失败: {str(e)}")
+            print(f"❌ Windows VBA宏执行失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
 
     def _export_to_xlsx_no_macro(self, template_path):
         """导出为不带宏的xlsx文件"""
-        workbook = openpyxl.load_workbook(template_path, keep_vba=False)
-        excel_stream = BytesIO()
-        workbook.save(excel_stream)
-        excel_stream.seek(0)
-        excel_data = excel_stream.getvalue()
-        excel_stream.close()
-        workbook.close()
-
-        print(f"✓ 已导出为xlsx格式，数据大小: {len(excel_data)} 字节")
-        return excel_data
+        try:
+            print(f"开始转换为xlsx格式...")
+            print(f"输入模板路径: {template_path}")
+            print(f"模板文件存在: {os.path.exists(template_path)}")
+            
+            # 加载工作簿，不保留VBA宏
+            workbook = openpyxl.load_workbook(template_path, keep_vba=False)
+            print(f"工作簿加载成功，工作表: {workbook.sheetnames}")
+            
+            # 保存到内存流
+            excel_stream = BytesIO()
+            workbook.save(excel_stream)
+            excel_stream.seek(0)
+            excel_data = excel_stream.getvalue()
+            excel_stream.close()
+            workbook.close()
+            
+            print(f"✓ 已导出为xlsx格式，数据大小: {len(excel_data)} 字节")
+            print(f"✓ xlsx转换完成，文件头: {excel_data[:10]}")
+            return excel_data
+            
+        except Exception as e:
+            print(f"xlsx转换失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def _clear_worksheet_data(self, worksheet):
         for row in range(2, worksheet.max_row + 1):
