@@ -157,8 +157,8 @@ class ExportService:
                         # 图片列：插入实际图片
                         print(f"处理第{row_idx}行图片列，图片路径: {product.get('image_path', '')}")
                         self._insert_image_to_cell(worksheet, row_idx, col_idx, product.get('image_path', ''))
-                        # 设置行高以适应图片
-                        worksheet.row_dimensions[row_idx].height = 60
+                        # 设置行高以适应原图（设置更大的行高）
+                        worksheet.row_dimensions[row_idx].height = 120
                     else:
                         # 其他列：写入文本值
                         cell = worksheet.cell(row=row_idx, column=col_idx)
@@ -242,23 +242,15 @@ class ExportService:
                 return
             print(f"正在插入图片: {full_image_path}")
             
-            # 调整图片大小
-            img = Image.open(full_image_path)
-            # 缩放到合适大小
-            img.thumbnail((80, 60), Image.Resampling.LANCZOS)
-            
-            # 保存调整后的图片到临时文件
-            temp_dir = tempfile.gettempdir()
-            temp_img_path = os.path.join(temp_dir, f'temp_img_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
-            img.save(temp_img_path, 'PNG')
-            
+            # 直接使用原图，不压缩
             # 将图片插入到Excel
             from openpyxl.drawing.image import Image as XLImage
-            excel_img = XLImage(temp_img_path)
+            excel_img = XLImage(full_image_path)
             
-            # 设置图片位置和大小
-            excel_img.width = 80
-            excel_img.height = 60
+            # 保持原图尺寸，不强制设置宽高
+            # 如果需要调整大小，可以在这里设置
+            # excel_img.width = 200  # 可以根据需要调整
+            # excel_img.height = 150
             
             # 将图片放置在单元格附近
             excel_img.anchor = f'{get_column_letter(col)}{row}'
@@ -396,7 +388,7 @@ objExcel.Quit
             'price': 15,
             'quantity': 12,
             'spec': 20,
-            'image': 30,
+            'image': 50,  # 增加图片列宽度，适应原图
             'create_time': 25
         }
         for col_idx, column in enumerate(selected_columns, 1):
