@@ -1,21 +1,26 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-导出服务 (跨平台版本)
-Windows: 写入模板 + 调用宏美化 → 导出xlsx
+商品信息管理系统导出服务
+Windows: 写入模板 → 执行VBA宏 → 导出为xlsx
 Mac/Linux: 写入模板 → 保留xlsm，用户打开时宏自动运行
 """
 
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
 import os
 import tempfile
 import shutil
-from datetime import datetime
 import platform
 import subprocess
+import logging
+from datetime import datetime
 from io import BytesIO
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 from PIL import Image
+
+# 使用主应用的日志配置
+logger = logging.getLogger(__name__)
 
 class ExportService:
     """导出服务类"""
@@ -25,80 +30,80 @@ class ExportService:
 
     def export_to_excel(self, products_data, selected_columns):
         """导出商品数据"""
-        print(f"\n{'='*50}")
-        print(f"🚀 导出服务开始执行")
-        print(f"{'='*50}")
+        logger.info(f"\n{'='*50}")
+        logger.info(f"🚀 导出服务开始执行")
+        logger.info(f"{'='*50}")
         
         temp_files_to_cleanup = []  # 记录需要清理的临时文件
         try:
-            print(f"=== 导出开始 ===")
-            print(f"输入数据: {len(products_data)} 条记录")
-            print(f"选择的列: {selected_columns}")
-            print(f"模板路径: {self.template_path}")
-            print(f"模板文件存在: {os.path.exists(self.template_path)}")
+            logger.info(f"=== 导出开始 ===")
+            logger.info(f"输入数据: {len(products_data)} 条记录")
+            logger.info(f"选择的列: {selected_columns}")
+            logger.info(f"模板路径: {self.template_path}")
+            logger.info(f"模板文件存在: {os.path.exists(self.template_path)}")
             
             # 0. 规范化列名（将 image_path 等同于 image）
-            print(f"\n📋 步骤1: 规范化列名")
+            logger.info(f"\n📋 步骤1: 规范化列名")
             normalized_columns = self._normalize_columns(selected_columns)
-            print(f"规范化后的列: {normalized_columns}")
+            logger.info(f"规范化后的列: {normalized_columns}")
 
             # 1. 写入数据到模板
-            print(f"\n📝 步骤2: 写入数据到模板")
+            logger.info(f"\n📝 步骤2: 写入数据到模板")
             temp_template_path = self._write_data_to_template(products_data, normalized_columns)
             temp_files_to_cleanup.append(temp_template_path)
-            print(f"临时模板路径: {temp_template_path}")
+            logger.info(f"临时模板路径: {temp_template_path}")
 
             # 2. 根据平台执行不同逻辑
-            print(f"\n🖥️ 步骤3: 平台检测和导出")
+            logger.info(f"\n🖥️ 步骤3: 平台检测和导出")
             system_type = platform.system()
-            print(f"当前系统: {system_type}")
+            logger.info(f"当前系统: {system_type}")
             
             if system_type == 'Windows':
-                print(f"🔧 使用Windows导出逻辑")
+                logger.info(f"🔧 使用Windows导出逻辑")
                 final_excel_data = self._export_windows(temp_template_path)
             else:
-                print(f"🍎 使用Mac/Linux导出逻辑")
+                logger.info(f"🍎 使用Mac/Linux导出逻辑")
                 final_excel_data = self._export_mac_linux(temp_template_path)
 
-            print(f"\n📊 导出结果")
-            print(f"最终数据大小: {len(final_excel_data) if final_excel_data else 0} 字节")
-            print(f"=== 导出完成 ===")
+            logger.info(f"\n�� 导出结果")
+            logger.info(f"最终数据大小: {len(final_excel_data) if final_excel_data else 0} 字节")
+            logger.info(f"=== 导出完成 ===")
             return final_excel_data
 
         except Exception as e:
-            print(f"\n❌ 导出失败: {str(e)}")
+            logger.error(f"\n❌ 导出失败: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
         finally:
-            print(f"\n🧹 清理临时文件")
+            logger.info(f"\n🧹 清理临时文件")
             # 清理所有临时文件
             self._cleanup_temp_files(temp_files_to_cleanup)
-            print(f"{'='*50}")
-            print(f"🏁 导出服务执行结束")
-            print(f"{'='*50}\n")
+            logger.info(f"{'='*50}")
+            logger.info(f"🏁 导出服务执行结束")
+            logger.info(f"{'='*50}\n")
 
     def _export_windows(self, template_path):
         """Windows系统导出逻辑"""
         try:
-            print(f"\n🔧 Windows导出逻辑开始")
-            print(f"Windows系统：执行VBA宏美化...")
-            print(f"模板路径: {template_path}")
+            logger.info(f"\n🔧 Windows导出逻辑开始")
+            logger.info(f"Windows系统：执行VBA宏美化...")
+            logger.info(f"模板路径: {template_path}")
             
             # 调用VBA宏
-            print(f"\n📜 步骤3.1: 调用VBA宏")
+            logger.info(f"\n📜 步骤3.1: 调用VBA宏")
             self._trigger_vba_macro(template_path)
-            print("VBA宏执行完成，开始转换为xlsx...")
+            logger.info("VBA宏执行完成，开始转换为xlsx...")
             
             # 导出为无宏xlsx
-            print(f"\n📊 步骤3.2: 转换为xlsx格式")
+            logger.info(f"\n📊 步骤3.2: 转换为xlsx格式")
             final_excel_data = self._export_to_xlsx_no_macro(template_path)
-            print(f"xlsx转换完成，最终数据大小: {len(final_excel_data)} 字节")
-            print("✓ Windows导出完成")
+            logger.info(f"xlsx转换完成，最终数据大小: {len(final_excel_data)} 字节")
+            logger.info("✓ Windows导出完成")
             return final_excel_data
             
         except Exception as e:
-            print(f"\n❌ Windows导出失败: {str(e)}")
+            logger.error(f"\n❌ Windows导出失败: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -106,48 +111,48 @@ class ExportService:
     def _export_mac_linux(self, template_path):
         """Mac/Linux系统导出逻辑"""
         try:
-            print("Mac/Linux系统：保留xlsm格式，宏在用户打开时自动执行...")
+            logger.info("Mac/Linux系统：保留xlsm格式，宏在用户打开时自动执行...")
             # 直接返回xlsm文件内容
             with open(template_path, "rb") as f:
                 final_excel_data = f.read()
-            print("✓ Mac/Linux导出完成")
+            logger.info("✓ Mac/Linux导出完成")
             return final_excel_data
         except Exception as e:
-            print(f"Mac/Linux导出失败: {str(e)}")
+            logger.error(f"Mac/Linux导出失败: {str(e)}")
             raise
 
     def _write_data_to_template(self, products_data, selected_columns):
         """将数据写入模板"""
         try:
-            print(f"开始写入模板...")
+            logger.info(f"开始写入模板...")
             temp_dir = tempfile.gettempdir()
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             temp_template_path = os.path.join(temp_dir, f'temp_template_{timestamp}.xlsm')
-            print(f"临时模板路径: {temp_template_path}")
+            logger.info(f"临时模板路径: {temp_template_path}")
 
-            print(f"复制模板文件...")
+            logger.info(f"复制模板文件...")
             shutil.copy2(self.template_path, temp_template_path)
-            print(f"模板文件复制完成")
+            logger.info(f"模板文件复制完成")
             
-            print(f"加载工作簿...")
+            logger.info(f"加载工作簿...")
             workbook = openpyxl.load_workbook(temp_template_path, keep_vba=True)
-            print(f"工作簿加载完成，工作表: {workbook.sheetnames}")
+            logger.info(f"工作簿加载完成，工作表: {workbook.sheetnames}")
 
             # 找表
             if '商品信息模板' in workbook.sheetnames:
                 worksheet = workbook['商品信息模板']
-                print(f"找到工作表: 商品信息模板")
+                logger.info(f"找到工作表: 商品信息模板")
             else:
                 worksheet = workbook.active
-                print(f"使用默认工作表: {worksheet.title}")
+                logger.info(f"使用默认工作表: {worksheet.title}")
 
             # 清空数据
-            print(f"清空现有数据...")
+            logger.info(f"清空现有数据...")
             self._clear_worksheet_data(worksheet)
 
             # 先清空表头区域（避免模板残留列名）
             # 假设模板表头不超过 20 列
-            print(f"清空表头区域...")
+            logger.info(f"清空表头区域...")
             for col in range(1, max(worksheet.max_column, 20) + 1):
                 worksheet.cell(row=1, column=col).value = None
 
@@ -166,21 +171,21 @@ class ExportService:
                 pass
 
             # 写入表头
-            print(f"写入表头...")
+            logger.info(f"写入表头...")
             for col_idx, column in enumerate(selected_columns, 1):
                 cell = worksheet.cell(row=1, column=col_idx)
                 cell.value = self._get_column_display_name(column)
                 self._apply_header_style(cell)
-                print(f"表头 {col_idx}: {cell.value}")
+                logger.info(f"表头 {col_idx}: {cell.value}")
 
             # 写入数据
-            print(f"写入数据...")
+            logger.info(f"写入数据...")
             for row_idx, product in enumerate(products_data, 2):
-                print(f"处理第 {row_idx} 行: {product}")
+                logger.info(f"处理第 {row_idx} 行: {product}")
                 for col_idx, column in enumerate(selected_columns, 1):
                     if column == 'image':
                         # 图片列：插入实际图片
-                        print(f"处理第{row_idx}行图片列，图片路径: {product.get('image_path', '')}")
+                        logger.info(f"处理第{row_idx}行图片列，图片路径: {product.get('image_path', '')}")
                         self._insert_image_to_cell(worksheet, row_idx, col_idx, product.get('image_path', ''))
                         # 设置行高以适应原图（设置更大的行高）
                         worksheet.row_dimensions[row_idx].height = 120
@@ -189,22 +194,22 @@ class ExportService:
                         cell = worksheet.cell(row=row_idx, column=col_idx)
                         cell.value = self._get_product_value(product, column)
                         self._apply_data_style(cell)
-                        print(f"  列 {col_idx} ({column}): {cell.value}")
+                        logger.info(f"  列 {col_idx} ({column}): {cell.value}")
 
             # 调整列宽
-            print(f"调整列宽...")
+            logger.info(f"调整列宽...")
             self._adjust_column_widths(worksheet, selected_columns)
 
-            print(f"保存工作簿...")
+            logger.info(f"保存工作簿...")
             workbook.save(temp_template_path)
             workbook.close()
-            print(f"工作簿保存完成")
+            logger.info(f"工作簿保存完成")
 
-            print(f"✓ 数据已写入模板: {temp_template_path}")
+            logger.info(f"✓ 数据已写入模板: {temp_template_path}")
             return temp_template_path
             
         except Exception as e:
-            print(f"写入模板失败: {str(e)}")
+            logger.error(f"写入模板失败: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -258,14 +263,14 @@ class ExportService:
         """在指定单元格插入图片"""
         try:
             if not image_path:
-                print(f"图片路径为空")
+                logger.warning(f"图片路径为空")
                 return
             # 解析为可用的绝对路径
             full_image_path = self._resolve_image_path(image_path)
             if not full_image_path:
-                print(f"找不到图片文件: {image_path}")
+                logger.warning(f"找不到图片文件: {image_path}")
                 return
-            print(f"正在插入图片: {full_image_path}")
+            logger.info(f"正在插入图片: {full_image_path}")
             
             # 直接使用原图，不压缩
             # 将图片插入到Excel
@@ -285,10 +290,10 @@ class ExportService:
             
             # 不要在这里删除临时图片文件，让 openpyxl 在保存时处理
             # 我们将在整个导出完成后清理所有临时文件
-            print(f"✓ 图片已插入到单元格 {get_column_letter(col)}{row}")
+            logger.info(f"✓ 图片已插入到单元格 {get_column_letter(col)}{row}")
             
         except Exception as e:
-            print(f"插入图片失败: {str(e)}")
+            logger.error(f"插入图片失败: {str(e)}")
             import traceback
             traceback.print_exc()
     
@@ -298,9 +303,9 @@ class ExportService:
             try:
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
-                    print(f"已清理临时文件: {temp_file}")
+                    logger.info(f"已清理临时文件: {temp_file}")
             except Exception as e:
-                print(f"清理临时文件失败 {temp_file}: {str(e)}")
+                logger.error(f"清理临时文件失败 {temp_file}: {str(e)}")
         
         # 清理临时图片文件
         temp_dir = tempfile.gettempdir()
@@ -309,69 +314,71 @@ class ExportService:
                 if filename.startswith('temp_img_') and filename.endswith('.png'):
                     temp_img_path = os.path.join(temp_dir, filename)
                     os.remove(temp_img_path)
-                    print(f"已清理临时图片: {filename}")
+                    logger.info(f"已清理临时图片: {filename}")
         except Exception as e:
-            print(f"清理临时图片失败: {str(e)}")
+            logger.error(f"清理临时图片失败: {str(e)}")
 
     def _trigger_vba_macro(self, template_path):
         """Windows下触发VBA宏"""
         try:
-            print(f"=== VBA宏执行开始 ===")
-            print(f"模板路径: {template_path}")
-            print(f"模板文件存在: {os.path.exists(template_path)}")
+            logger.info(f"=== VBA宏执行开始 ===")
+            logger.info(f"模板路径: {template_path}")
+            logger.info(f"模板文件存在: {os.path.exists(template_path)}")
             
             safe_path = template_path.replace("\\", "\\\\")
-            print(f"安全路径: {safe_path}")
+            logger.info(f"安全路径: {safe_path}")
             
-            vbs_script = f'''
+                         vbs_script = f'''
 Set objExcel = CreateObject("Excel.Application")
 objExcel.Visible = False
 objExcel.DisplayAlerts = False
+objExcel.ScreenUpdating = False
+objExcel.Calculation = xlCalculationManual
 
 Set objWorkbook = objExcel.Workbooks.Open("{safe_path}")
 objExcel.Run "BeautifySheet"
-WScript.Sleep 2000
+WScript.Sleep 500
 objWorkbook.Save
 objWorkbook.Close False
 objExcel.Quit
 '''
-            print(f"VBS脚本内容:")
-            print(vbs_script)
+            logger.info(f"VBS脚本内容:")
+            logger.info(vbs_script)
 
             temp_dir = tempfile.gettempdir()
             vbs_path = os.path.join(temp_dir, f'trigger_macro_{datetime.now().strftime("%Y%m%d_%H%M%S")}.vbs')
-            print(f"VBS文件路径: {vbs_path}")
+            logger.info(f"VBS文件路径: {vbs_path}")
 
             with open(vbs_path, 'w', encoding='utf-8') as f:
                 f.write(vbs_script)
-            print(f"VBS文件写入完成")
+            logger.info(f"VBS文件写入完成")
 
-            print(f"开始执行VBS脚本...")
+            logger.info(f"开始执行VBS脚本...")
             result = subprocess.run(['cscript', '//NoLogo', vbs_path], shell=True, timeout=30, capture_output=True, text=True)
-            print(f"VBS执行返回码: {result.returncode}")
-            print(f"VBS执行输出: {result.stdout}")
-            print(f"VBS执行错误: {result.stderr}")
+            logger.info(f"VBS执行返回码: {result.returncode}")
+            logger.info(f"VBS执行输出: {result.stdout}")
+            logger.info(f"VBS执行错误: {result.stderr}")
             
             os.remove(vbs_path)
-            print(f"VBS文件已删除")
+            logger.info(f"VBS文件已删除")
 
-            print("✓ VBA宏执行完成")
+            logger.info("✓ VBA宏执行完成")
 
         except Exception as e:
-            print(f"❌ Windows VBA宏执行失败: {str(e)}")
+            logger.error(f"❌ Windows VBA宏执行失败: {str(e)}")
             import traceback
             traceback.print_exc()
 
     def _export_to_xlsx_no_macro(self, template_path):
         """导出为不带宏的xlsx文件"""
         try:
-            print(f"开始转换为xlsx格式...")
-            print(f"输入模板路径: {template_path}")
-            print(f"模板文件存在: {os.path.exists(template_path)}")
+            logger.info(f"开始转换为xlsx格式...")
+            logger.info(f"输入模板路径: {template_path}")
+            logger.info(f"模板文件存在: {os.path.exists(template_path)}")
             
             # 加载工作簿，不保留VBA宏
             workbook = openpyxl.load_workbook(template_path, keep_vba=False)
-            print(f"工作簿加载成功，工作表: {workbook.sheetnames}")
+            logger.info(f"工作簿加载成功，工作表: {workbook.sheetnames}")
             
             # 保存到内存流
             excel_stream = BytesIO()
@@ -381,12 +388,12 @@ objExcel.Quit
             excel_stream.close()
             workbook.close()
             
-            print(f"✓ 已导出为xlsx格式，数据大小: {len(excel_data)} 字节")
-            print(f"✓ xlsx转换完成，文件头: {excel_data[:10]}")
+            logger.info(f"✓ 已导出为xlsx格式，数据大小: {len(excel_data)} 字节")
+            logger.info(f"✓ xlsx转换完成，文件头: {excel_data[:10]}")
             return excel_data
             
         except Exception as e:
-            print(f"xlsx转换失败: {str(e)}")
+            logger.error(f"xlsx转换失败: {str(e)}")
             import traceback
             traceback.print_exc()
             raise

@@ -15,17 +15,17 @@
                 transition: transform 0.2s ease-in-out;
                 border: 2px solid transparent;
             }
-            
+
             .product-image:hover {
                 transform: scale(1.05);
                 border-color: #007bff;
                 box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
             }
-            
+
             .product-image:active {
                 transform: scale(0.95);
             }
-            
+
             .form-container {
                 background: #f8f9fa;
                 border-radius: 10px;
@@ -154,7 +154,8 @@
                 </h3>
                 <div class="alert alert-info" role="alert">
                     <i class="bi bi-info-circle"></i>
-                    <strong>提示：</strong>点击商品图片可以查看原图，支持下载
+                    <strong>提示：</strong>
+                    点击商品图片可以查看原图，支持下载
                 </div>
                 <div class="table-responsive">
                     <table class="table table-striped table-hover">
@@ -209,7 +210,7 @@
                     </div>
                     <form id="editProductForm" enctype="multipart/form-data">
                         <div class="modal-body">
-                            <input type="hidden" id="editProductId" name="id">
+                            <input type="hidden" id="editProductId" name="id" />
                             <div class="row">
                                 <div class="col-md-6">
                                     <label for="editName" class="form-label">商品名称 *</label>
@@ -268,7 +269,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body text-center">
-                        <img id="fullSizeImage" src="" alt="商品原图" class="img-fluid" style="max-height: 80vh;">
+                        <img id="fullSizeImage" src="" alt="商品原图" class="img-fluid" style="max-height: 80vh" />
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -448,15 +449,34 @@
                 })
                     .then(response => {
                         if (response.ok) {
-                            return response.blob();
+                            // 从响应头获取文件名
+                            const contentDisposition = response.headers.get('Content-Disposition');
+                            let filename = '';
+
+                            if (contentDisposition) {
+                                // 解析Content-Disposition头获取文件名
+                                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                if (filenameMatch && filenameMatch[1]) {
+                                    filename = filenameMatch[1].replace(/['"]/g, '');
+                                }
+                            }
+
+                            // 如果没有获取到文件名，使用默认格式
+                            if (!filename) {
+                                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                                filename = `products_${timestamp}.xlsx`;
+                            }
+
+                            console.log('后端返回的文件名:', filename);
+                            return response.blob().then(blob => ({ blob, filename }));
                         }
                         throw new Error('导出失败');
                     })
-                    .then(blob => {
+                    .then(({ blob, filename }) => {
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `products_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsm`;
+                        a.download = filename; // 使用后端返回的文件名
                         document.body.appendChild(a);
                         a.click();
                         window.URL.revokeObjectURL(url);
@@ -502,7 +522,7 @@
                 document.getElementById('editPrice').value = price;
                 document.getElementById('editQuantity').value = quantity;
                 document.getElementById('editSpec').value = spec;
-                
+
                 // 显示当前图片
                 const currentImageDisplay = document.getElementById('currentImageDisplay');
                 if (imagePath && imagePath !== '') {
@@ -510,7 +530,7 @@
                 } else {
                     currentImageDisplay.innerHTML = '<span class="text-muted">无图片</span>';
                 }
-                
+
                 // 显示模态框
                 const editModal = new bootstrap.Modal(document.getElementById('editProductModal'));
                 editModal.show();
@@ -526,18 +546,18 @@
                         },
                         body: JSON.stringify({ id: id })
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showMessage(data.message, 'success');
-                            loadProducts(); // 重新加载商品列表
-                        } else {
-                            showMessage(data.message, 'error');
-                        }
-                    })
-                    .catch(error => {
-                        showMessage('删除失败: ' + error.message, 'error');
-                    });
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showMessage(data.message, 'success');
+                                loadProducts(); // 重新加载商品列表
+                            } else {
+                                showMessage(data.message, 'error');
+                            }
+                        })
+                        .catch(error => {
+                            showMessage('删除失败: ' + error.message, 'error');
+                        });
                 }
             }
 
@@ -549,51 +569,51 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showMessage(data.message, 'success');
-                        // 关闭模态框
-                        const editModal = bootstrap.Modal.getInstance(document.getElementById('editProductModal'));
-                        editModal.hide();
-                        // 重新加载商品列表
-                        loadProducts();
-                    } else {
-                        showMessage(data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    showMessage('更新失败: ' + error.message, 'error');
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showMessage(data.message, 'success');
+                            // 关闭模态框
+                            const editModal = bootstrap.Modal.getInstance(document.getElementById('editProductModal'));
+                            editModal.hide();
+                            // 重新加载商品列表
+                            loadProducts();
+                        } else {
+                            showMessage(data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('更新失败: ' + error.message, 'error');
+                    });
             }
 
             // 查看图片
             function viewImage(imageUrl) {
                 const fullSizeImage = document.getElementById('fullSizeImage');
                 const downloadImageLink = document.getElementById('downloadImageLink');
-                
+
                 // 显示加载状态
                 fullSizeImage.src = '';
                 fullSizeImage.alt = '加载中...';
                 fullSizeImage.style.opacity = '0.5';
-                
+
                 // 设置图片源
                 fullSizeImage.src = imageUrl;
                 downloadImageLink.href = imageUrl;
-                
+
                 // 图片加载完成后恢复样式
-                fullSizeImage.onload = function() {
+                fullSizeImage.onload = function () {
                     fullSizeImage.style.opacity = '1';
                     fullSizeImage.alt = '商品原图';
                 };
-                
+
                 // 图片加载失败处理
-                fullSizeImage.onerror = function() {
+                fullSizeImage.onerror = function () {
                     fullSizeImage.alt = '图片加载失败';
                     fullSizeImage.style.opacity = '0.3';
                     showMessage('图片加载失败，请检查图片文件是否存在', 'error');
                 };
-                
+
                 // 显示模态框
                 const imageViewModal = new bootstrap.Modal(document.getElementById('imageViewModal'));
                 imageViewModal.show();

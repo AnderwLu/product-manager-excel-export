@@ -7,7 +7,11 @@
 from flask import Flask, render_template, send_from_directory
 from controllers.product_controller import product_bp
 from models.product import Product
+from logging_config import setup_logging
 import os
+
+# 初始化日志系统
+logger = setup_logging()
 
 def create_app():
     app = Flask(__name__)
@@ -37,9 +41,10 @@ app = create_app()
 with app.app_context():
     try:
         Product.create_table()
-        print("✅ 数据库表初始化成功")
+        logger.info("数据库表初始化完成")
     except Exception as e:
-        print(f"❌ 数据库表初始化失败: {e}")
+        logger.error(f"数据库表初始化失败: {str(e)}")
 
 if __name__ == '__main__':
+    logger.info("应用启动中...")
     app.run(debug=True, host='0.0.0.0', port=5001)
