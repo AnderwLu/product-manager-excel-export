@@ -4,7 +4,7 @@
 商品信息管理系统主应用文件 - MVC架构版本
 """
 
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template, send_from_directory, redirect, url_for
 from controllers.product_controller import product_bp
 from models.product import Product
 from logging_config import setup_logging
@@ -21,7 +21,15 @@ def create_app():
     
     @app.route('/')
     def index():
-        return render_template('index.html')
+        return redirect(url_for('search_page'))
+
+    @app.route('/search')
+    def search_page():
+        return render_template('search_export.html')
+
+    @app.route('/entry')
+    def entry_page():
+        return render_template('entry.html')
     
     @app.route('/uploads/<filename>')
     def uploaded_file(filename):

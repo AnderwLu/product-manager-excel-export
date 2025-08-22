@@ -7,6 +7,7 @@
 from flask import Blueprint, request, jsonify, send_file
 from models.product import Product
 from services.export_service import ExportService
+from services.product_service import ProductService
 import logging
 
 # 使用主应用的日志配置
@@ -15,6 +16,7 @@ logger = get_logger(__name__)
 
 # 创建导出服务实例
 export_service = ExportService()
+product_service = ProductService()
 
 # 创建蓝图
 product_bp = Blueprint('product', __name__)
@@ -29,9 +31,9 @@ def add_product():
         quantity = request.form.get('quantity')
         spec = request.form.get('spec', '')
         image_file = request.files.get('image')
-        
-        # 直接调用Product模型方法
-        result = Product.create(name, price, quantity, spec, image_file)
+
+        # 使用服务层处理业务逻辑
+        result = product_service.add_product(name, price, quantity, spec, image_file)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': f'添加失败: {str(e)}'})
@@ -78,11 +80,12 @@ def delete_product():
     try:
         data = request.get_json()
         product_id = data.get('id')
-        
+
         if not product_id:
             return jsonify({'success': False, 'message': '商品ID不能为空'})
-        
-        result = Product.delete(product_id)
+
+        # 使用服务层执行删除，统一处理图片与记录
+        result = product_service.delete_product(product_id)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': f'删除失败: {str(e)}'})
@@ -91,8 +94,18 @@ def delete_product():
 def update_product():
     """更新商品"""
     try:
-        # 这里需要实现更新逻辑，暂时返回错误
-        return jsonify({'success': False, 'message': '更新功能暂未实现'})
+        product_id = request.form.get('id')
+        name = request.form.get('name')
+        price = request.form.get('price')
+        quantity = request.form.get('quantity')
+        spec = request.form.get('spec', '')
+        image_file = request.files.get('image')
+
+        if not product_id:
+            return jsonify({'success': False, 'message': '商品ID不能为空'})
+
+        result = product_service.update_product(product_id, name, price, quantity, spec, image_file)
+        return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': f'更新失败: {str(e)}'})
 
