@@ -120,19 +120,59 @@ class Product:
             # 更新（保持原有字段集合，不动业务逻辑）
             sql = '''
                 UPDATE products 
-                SET name=?, price=?, quantity=?, spec=?, image_path=?
+                SET name=?, price=?, quantity=?, spec=?, image_path=?,
+                    doc_date=?, customer_name=?, product_desc=?, unit=?, unit_price=?,
+                    remark=?, settlement_account=?, description=?, salesperson=?, freight=?, paid_total=?
                 WHERE id=?
             '''
-            params = (self.name, self.price, self.quantity, self.spec, 
-                     self.image_path, self.id)
+            params = (
+                self.name,
+                self.price,
+                self.quantity,
+                self.spec,
+                self.image_path,
+                self.doc_date,
+                (self.customer_name or self.name),
+                self.product_desc,
+                (self.unit or self.spec),
+                (self.unit_price if self.unit_price is not None else self.price),
+                self.remark,
+                self.settlement_account,
+                self.description,
+                self.salesperson,
+                self.freight,
+                self.paid_total,
+                self.id
+            )
             return db_manager.execute_update(sql, params)
         else:
             # 插入（保持原有字段集合，不动业务逻辑）
             sql = '''
-                INSERT INTO products (name, price, quantity, spec, image_path)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO products (
+                    name, price, quantity, spec, image_path,
+                    doc_date, customer_name, product_desc, unit, unit_price,
+                    remark, settlement_account, description, salesperson, freight, paid_total
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             '''
-            params = (self.name, self.price, self.quantity, self.spec, self.image_path)
+            params = (
+                self.name,
+                self.price,
+                self.quantity,
+                self.spec,
+                self.image_path,
+                self.doc_date,
+                (self.customer_name or self.name),
+                self.product_desc,
+                (self.unit or self.spec),
+                (self.unit_price if self.unit_price is not None else self.price),
+                self.remark,
+                self.settlement_account,
+                self.description,
+                self.salesperson,
+                self.freight,
+                self.paid_total
+            )
             self.id = db_manager.execute_insert(sql, params)
             return self.id
     

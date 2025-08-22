@@ -14,7 +14,7 @@ class ProductService:
         self.file_handler = FileHandler()
         self.validator = ProductValidator()
     
-    def add_product(self, name, price, quantity, spec, image_file, salesperson=None, doc_date=None, product_desc=None):
+    def add_product(self, name, price, quantity, spec, image_file, salesperson=None, doc_date=None, product_desc=None, remark=None, settlement_account=None, description=None, freight=None, paid_total=None):
         """添加商品"""
         # 录入必填校验（单据日期、客户名称、品名规格、数量）
         req = self.validator.validate_entry_required(doc_date, name, product_desc, quantity)
@@ -44,7 +44,12 @@ class ProductService:
             # 新增字段入库（保持后端流程，未改原有SQL列集）
             salesperson=salesperson,
             doc_date=doc_date,
-            product_desc=product_desc
+            product_desc=product_desc,
+            remark=remark,
+            settlement_account=settlement_account,
+            description=description,
+            freight=float(freight) if freight not in (None, '') else None,
+            paid_total=float(paid_total) if paid_total not in (None, '') else None
         )
         
         # 保存到数据库

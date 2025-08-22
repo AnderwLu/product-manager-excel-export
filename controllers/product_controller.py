@@ -41,14 +41,26 @@ def add_product():
         # 新字段（可选）
         doc_date = request.form.get('doc_date')
         product_desc = request.form.get('product_desc')
+        remark = request.form.get('remark')
+        settlement_account = request.form.get('settlement_account')
+        description = request.form.get('description')
+        freight = request.form.get('freight')
+        paid_total = request.form.get('paid_total')
         # 后台自动补录营业员
         salesperson = (session.get('real_name') or session.get('username') or '').strip()
 
         # 使用服务层处理业务逻辑
-        result = product_service.add_product(name, price, quantity, spec, image_file,
-                                             salesperson=salesperson,
-                                             doc_date=doc_date,
-                                             product_desc=product_desc)
+        result = product_service.add_product(
+            name, price, quantity, spec, image_file,
+            salesperson=salesperson,
+            doc_date=doc_date,
+            product_desc=product_desc,
+            remark=remark,
+            settlement_account=settlement_account,
+            description=description,
+            freight=freight,
+            paid_total=paid_total
+        )
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': f'添加失败: {str(e)}'})

@@ -140,7 +140,7 @@
                             </div>
                             <div class="mt-3">
                                 <button type="submit" class="btn btn-primary"><i class="bi bi-plus"></i> 添加</button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('productForm').reset()"><i class="bi bi-eraser"></i> 清空</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="clearForm()"><i class="bi bi-eraser"></i> 清空</button>
                             </div>
                         </form>
                     </div>
@@ -282,16 +282,26 @@
                     .then(d => {
                         if (d.success) {
                             showMessage(d.message, 'success');
-                            // 重置输入框，包括文件选择
-                            const form = document.getElementById('productForm');
-                            form.reset();
-                            // 兼容性处理：清空file input的值
-                            const imgInput = document.getElementById('image');
-                            if (imgInput) { imgInput.value = ''; }
                             refreshToday();
                         } else showMessage(d.message, 'error');
                     })
                     .catch(err => showMessage('添加失败: ' + err.message, 'error'));
+            }
+
+            function clearForm() {
+                const form = document.getElementById('productForm');
+                if (!form) return;
+                form.reset();
+                const imgInput = document.getElementById('image');
+                if (imgInput) { imgInput.value = ''; }
+                // 重新设置默认日期
+                const dd = document.getElementById('doc_date');
+                if (dd) {
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    dd.value = now.toISOString().slice(0, 10);
+                }
+                recalc();
             }
 
             function markInvalid(el, invalid) {
