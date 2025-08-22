@@ -140,20 +140,31 @@ def export_products():
         
         logger.info(f"导出服务返回数据大小: {len(excel_data)} 字节")
         logger.info(f"文件头信息: {excel_data[:20]}")
-        
         # 检查文件类型
         if excel_data.startswith(b'PK\x03\x04'):
             logger.info("✓ 确认文件格式: 标准xlsx格式 (ZIP压缩包)")
         else:
             logger.warning(f"⚠️ 文件格式异常: {excel_data[:10]}")
         
-        # 生成文件名 - 使用.xlsx格式
+        # 根据平台动态生成文件名
         from datetime import datetime
+        import platform
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'products_{timestamp}.xlsx'
         
+        # Windows下导出为xlsx，Mac/Linux下导出为xlsm
+        system_type = platform.system()
+        if system_type == 'Windows':
+            file_extension = 'xlsx'
+            mime_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        else:
+            file_extension = 'xlsm'
+            mime_type = 'application/vnd.ms-excel.sheet.macroEnabled.12'
+        
+        filename = f'{timestamp}.{file_extension}'
+        
+        logger.info(f"当前系统: {system_type}")
         logger.info(f"设置文件名: {filename}")
-        logger.info(f"设置MIME类型: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        logger.info(f"设置MIME类型: {mime_type}")
         
         # 使用BytesIO创建文件对象
         from io import BytesIO
@@ -164,7 +175,7 @@ def export_products():
         
         return send_file(
             excel_file,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            mimetype=mime_type,
             as_attachment=True,
             download_name=filename
         )
