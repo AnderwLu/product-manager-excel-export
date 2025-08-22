@@ -222,13 +222,35 @@ class ExportService:
         - 过滤未知列，保持顺序
         """
         mapping = {
-            'name': 'name',
-            'price': 'price',
+            # 新字段（及兼容旧字段名）
+            'doc_date': 'doc_date',
+            'customer_name': 'customer_name',
+            'product_desc': 'product_desc',
+            'unit': 'unit',
             'quantity': 'quantity',
-            'spec': 'spec',
+            'unit_price': 'unit_price',
+            'unit_discount_rate': 'unit_discount_rate',
+            'unit_price_discounted': 'unit_price_discounted',
+            'amount': 'amount',
             'image': 'image',
-            'image_path': 'image',
+            'remark': 'remark',
+            'freight': 'freight',
+            'order_discount_rate': 'order_discount_rate',
+            'amount_discounted': 'amount_discounted',
+            'receivable': 'receivable',
+            'payment_current': 'payment_current',
+            'paid_total': 'paid_total',
+            'balance': 'balance',
+            'settlement_account': 'settlement_account',
+            'description': 'description',
+            'salesperson': 'salesperson',
+            'update_time': 'update_time',
             'create_time': 'create_time',
+            # 兼容旧键名
+            'name': 'customer_name',     # 旧 name 作为客户名称
+            'price': 'unit_price',       # 旧 price 作为单价
+            'spec': 'unit',              # 旧 spec 作为单位
+            'image_path': 'image',
         }
         normalized = []
         for col in selected_columns:
@@ -428,32 +450,103 @@ objExcel.Quit
 
     def _get_column_display_name(self, column):
         mapping = {
-            'name': '商品名称',
-            'price': '价格',
+            'doc_date': '单据日期',
+            'customer_name': '客户名称',
+            'product_desc': '品名规格',
+            'unit': '单位',
             'quantity': '数量',
-            'spec': '规格',
+            'unit_price': '单价',
+            'unit_discount_rate': '单价折扣率(%)',
+            'unit_price_discounted': '折后单价',
+            'amount': '金额',
             'image': '图片',
+            'remark': '备注',
+            'freight': '运费',
+            'order_discount_rate': '整单折扣率(%)',
+            'amount_discounted': '折后金额',
+            'receivable': '应收款',
+            'payment_current': '本次收款',
+            'paid_total': '已收款',
+            'balance': '尾款',
+            'settlement_account': '结算账户',
+            'description': '说明',
+            'salesperson': '营业员',
+            'update_time': '修改时间',
             'create_time': '创建时间'
         }
         return mapping.get(column, column)
 
     def _get_product_value(self, product, column):
         try:
-            if column == 'name':
-                return product.get('name', '')
-            elif column == 'price':
-                return f"¥{float(product.get('price', 0) or 0):.2f}"
-            elif column == 'quantity':
-                return str(product.get('quantity', 0) or '0')
-            elif column == 'spec':
-                return product.get('spec', '')
-            elif column == 'image':
-                # 图片列不在这里处理，由_insert_image_to_cell处理
+            def num(x, default=0.0):
+                try:
+                    return float(x if x not in (None, '') else default)
+                except Exception:
+                    return default
+
+            unit_price = num(product.get('unit_price', product.get('price')))
+            qty = num(product.get('quantity'))
+            unit_rate = num(product.get('unit_discount_rate', 100))
+            amount_raw = num(product.get('amount'))
+            order_rate = num(product.get('order_discount_rate', 100))
+            freight = num(product.get('freight'))
+            paid_total = num(product.get('paid_total'))
+            payment_current = num(product.get('payment_current'))
+
+            if column == 'doc_date':
+                return product.get('doc_date') or (product.get('create_time') or '')[:10]
+            if column == 'customer_name':
+                return product.get('customer_name') or product.get('name', '')
+            if column == 'product_desc':
+                return product.get('product_desc', '')
+            if column == 'unit':
+                return product.get('unit') or product.get('spec', '')
+            if column == 'quantity':
+                return str(int(qty)) if qty.is_integer() else str(qty)
+            if column == 'unit_price':
+                return f"{unit_price:.2f}"
+            if column == 'unit_discount_rate':
+                return f"{unit_rate:.2f}"
+            if column == 'unit_price_discounted':
+                return f"{(unit_price * unit_rate / 100.0):.2f}"
+            if column == 'amount':
+                base = amount_raw if amount_raw else (unit_price * unit_rate / 100.0 * qty)
+                return f"{base:.2f}"
+            if column == 'image':
                 return ""
-            elif column == 'create_time':
+            if column == 'remark':
+                return product.get('remark', '')
+            if column == 'freight':
+                return f"{freight:.2f}"
+            if column == 'order_discount_rate':
+                return f"{order_rate:.2f}"
+            if column == 'amount_discounted':
+                base = amount_raw if amount_raw else (unit_price * unit_rate / 100.0 * qty)
+                return f"{(base * order_rate / 100.0):.2f}"
+            if column == 'receivable':
+                base = amount_raw if amount_raw else (unit_price * unit_rate / 100.0 * qty)
+                discounted = base * order_rate / 100.0
+                return f"{(discounted + freight):.2f}"
+            if column == 'payment_current':
+                return f"{payment_current:.2f}"
+            if column == 'paid_total':
+                return f"{paid_total:.2f}"
+            if column == 'balance':
+                base = amount_raw if amount_raw else (unit_price * unit_rate / 100.0 * qty)
+                discounted = base * order_rate / 100.0
+                receivable = discounted + freight
+                return f"{(receivable - paid_total):.2f}"
+            if column == 'settlement_account':
+                return product.get('settlement_account', '')
+            if column == 'description':
+                return product.get('description', '')
+            if column == 'salesperson':
+                return product.get('salesperson', '')
+            if column == 'update_time':
+                return product.get('update_time', '')
+            if column == 'create_time':
                 return product.get('create_time', '')
-            else:
-                return str(product.get(column, '') or '')
+            return str(product.get(column, '') or '')
         except Exception:
             return "错误"
 
@@ -473,12 +566,29 @@ objExcel.Quit
 
     def _adjust_column_widths(self, worksheet, selected_columns):
         widths = {
-            'name': 25,
-            'price': 15,
+            'doc_date': 16,
+            'customer_name': 18,
+            'product_desc': 28,
+            'unit': 10,
             'quantity': 12,
-            'spec': 20,
-            'image': 50,  # 增加图片列宽度，适应原图
-            'create_time': 25
+            'unit_price': 12,
+            'unit_discount_rate': 14,
+            'unit_price_discounted': 14,
+            'amount': 14,
+            'image': 50,
+            'remark': 24,
+            'freight': 12,
+            'order_discount_rate': 14,
+            'amount_discounted': 14,
+            'receivable': 14,
+            'payment_current': 14,
+            'paid_total': 14,
+            'balance': 14,
+            'settlement_account': 16,
+            'description': 20,
+            'salesperson': 12,
+            'update_time': 20,
+            'create_time': 20
         }
         for col_idx, column in enumerate(selected_columns, 1):
             worksheet.column_dimensions[get_column_letter(col_idx)].width = widths.get(column, 15)

@@ -26,6 +26,11 @@
             #columnList .draggable-item { display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem; border: 1px solid #e9ecef; border-radius: .5rem; margin-bottom: .5rem; background: #f8f9fa; }
             #columnList .draggable-item .drag-handle { cursor: grab; color: #6c757d; }
             #columnList .draggable-item.dragging { opacity: .6; }
+            /* 导出卡片布局：固定头部，列表独立滚动 */
+            #exportCard { display: flex; flex-direction: column; max-height: 72vh; }
+            #exportToolbar { display: flex; align-items: center; gap: .5rem; }
+            #columnListContainer { flex: 1 1 auto; overflow: auto; padding-top: .25rem; }
+            .center-hint { text-align: center; color: #6c757d; }
         </style>
     </head>
     <body class="bg-light">
@@ -80,14 +85,12 @@
                         <table class="table table-striped align-middle">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>ID</th>
-                                    <th>图片</th>
-                                    <th>名称</th>
-                                    <th>价格</th>
-                                    <th>数量</th>
-                                    <th>规格</th>
-                                    <th>创建时间</th>
-                                    <th>操作</th>
+                                    <th>单据日期</th><th>客户名称</th><th>品名规格</th><th>单位</th>
+                                    <th>数量</th><th>单价</th><th>单价折扣率(%)</th><th>折后单价</th>
+                                    <th>金额</th><th>图片</th><th>备注</th><th>运费</th>
+                                    <th>整单折扣率(%)</th><th>折后金额</th><th>应收款</th>
+                                    <th>本次收款</th><th>已收款</th><th>尾款</th><th>结算账户</th>
+                                    <th>说明</th><th>营业员</th><th>修改时间</th><th>创建时间</th><th>操作</th>
                                 </tr>
                             </thead>
                             <tbody id="productTableBody"></tbody>
@@ -97,51 +100,136 @@
                 </div>
 
                 <div class="tab-pane fade" id="export-pane" role="tabpanel">
-                    <div class="bg-white rounded shadow-sm p-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-3"><i class="bi bi-download"></i> 导出Excel</h5>
-                            <div class="mb-2">
-                                <small class="text-muted">勾选导出列，拖拽调顺序</small>
+                    <div class="bg-white rounded shadow-sm p-3" id="exportCard">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0"><i class="bi bi-download"></i> 导出Excel</h5>
+                            <div id="exportToolbar">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="toggleAllColumns(true)">全选</button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="toggleAllColumns(false)">全不选</button>
+                                <button class="btn btn-success btn-sm" onclick="exportProducts()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
                             </div>
                         </div>
 
+                        <div class="center-hint mb-2"><small>勾选导出列，拖拽调顺序</small></div>
+
+                        <div id="columnListContainer">
                         <ul id="columnList" class="list-unstyled">
-                            <li class="draggable-item" draggable="true" data-key="name">
+                            <li class="draggable-item" draggable="true" data-key="doc_date">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_name" value="name" checked>
-                                <label class="form-check-label ms-2" for="col_name">商品名称</label>
+                                <input class="form-check-input col-check" type="checkbox" id="col_doc_date" value="doc_date" checked>
+                                <label class="form-check-label ms-2" for="col_doc_date">单据日期</label>
                             </li>
-                            <li class="draggable-item" draggable="true" data-key="price">
+                            <li class="draggable-item" draggable="true" data-key="customer_name">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_price" value="price" checked>
-                                <label class="form-check-label ms-2" for="col_price">价格</label>
+                                <input class="form-check-input col-check" type="checkbox" id="col_customer" value="customer_name" checked>
+                                <label class="form-check-label ms-2" for="col_customer">客户名称</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="product_desc">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_product_desc" value="product_desc" checked>
+                                <label class="form-check-label ms-2" for="col_product_desc">品名规格</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="unit">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_unit" value="unit" checked>
+                                <label class="form-check-label ms-2" for="col_unit">单位</label>
                             </li>
                             <li class="draggable-item" draggable="true" data-key="quantity">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
                                 <input class="form-check-input col-check" type="checkbox" id="col_quantity" value="quantity" checked>
                                 <label class="form-check-label ms-2" for="col_quantity">数量</label>
                             </li>
-                            <li class="draggable-item" draggable="true" data-key="spec">
+                            <li class="draggable-item" draggable="true" data-key="unit_price">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_spec" value="spec">
-                                <label class="form-check-label ms-2" for="col_spec">规格</label>
+                                <input class="form-check-input col-check" type="checkbox" id="col_unit_price" value="unit_price" checked>
+                                <label class="form-check-label ms-2" for="col_unit_price">单价</label>
                             </li>
-                            <li class="draggable-item" draggable="true" data-key="image_path">
+                            <li class="draggable-item" draggable="true" data-key="unit_discount_rate">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_image" value="image_path">
+                                <input class="form-check-input col-check" type="checkbox" id="col_udr" value="unit_discount_rate">
+                                <label class="form-check-label ms-2" for="col_udr">单价折扣率(%)</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="unit_price_discounted">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_upd" value="unit_price_discounted">
+                                <label class="form-check-label ms-2" for="col_upd">折后单价</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="amount">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_amount" value="amount">
+                                <label class="form-check-label ms-2" for="col_amount">金额</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="image">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_image" value="image" checked>
                                 <label class="form-check-label ms-2" for="col_image">图片</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="remark">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_remark" value="remark" checked>
+                                <label class="form-check-label ms-2" for="col_remark">备注</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="freight">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_freight" value="freight">
+                                <label class="form-check-label ms-2" for="col_freight">运费</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="order_discount_rate">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_odr" value="order_discount_rate">
+                                <label class="form-check-label ms-2" for="col_odr">整单折扣率(%)</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="amount_discounted">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_amount_discounted" value="amount_discounted">
+                                <label class="form-check-label ms-2" for="col_amount_discounted">折后金额</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="receivable">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_receivable" value="receivable" checked>
+                                <label class="form-check-label ms-2" for="col_receivable">应收款</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="payment_current">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_payment_current" value="payment_current">
+                                <label class="form-check-label ms-2" for="col_payment_current">本次收款</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="paid_total">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_paid_total" value="paid_total">
+                                <label class="form-check-label ms-2" for="col_paid_total">已收款</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="balance">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_balance" value="balance">
+                                <label class="form-check-label ms-2" for="col_balance">尾款</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="settlement_account">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_settlement_account" value="settlement_account">
+                                <label class="form-check-label ms-2" for="col_settlement_account">结算账户</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="description">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_description" value="description">
+                                <label class="form-check-label ms-2" for="col_description">说明</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="salesperson">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_salesperson" value="salesperson">
+                                <label class="form-check-label ms-2" for="col_salesperson">营业员</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="update_time">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_update_time" value="update_time">
+                                <label class="form-check-label ms-2" for="col_update_time">修改时间</label>
                             </li>
                             <li class="draggable-item" draggable="true" data-key="create_time">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_time" value="create_time">
-                                <label class="form-check-label ms-2" for="col_time">创建时间</label>
+                                <input class="form-check-input col-check" type="checkbox" id="col_create_time" value="create_time">
+                                <label class="form-check-label ms-2" for="col_create_time">创建时间</label>
                             </li>
                         </ul>
-
-                        <div class="text-end">
-                            <button class="btn btn-outline-secondary me-2" onclick="toggleAllColumns(true)">全选</button>
-                            <button class="btn btn-outline-secondary me-2" onclick="toggleAllColumns(false)">全不选</button>
-                            <button class="btn btn-success" onclick="exportProducts()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
                         </div>
                     </div>
                 </div>
@@ -282,25 +370,57 @@
                 const tbody = document.getElementById('productTableBody');
                 tbody.innerHTML = '';
                 if (!products || products.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center">暂无数据</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="25" class="text-center">暂无数据</td></tr>';
                     return;
                 }
-                products.forEach(product => {
+                products.forEach(p => {
+                    const docDate = p.doc_date || (p.create_time || '').slice(0,10);
+                    const unitPrice = Number(p.unit_price ?? p.price ?? 0);
+                    const qty = Number(p.quantity ?? 0);
+                    const unitRate = Number(p.unit_discount_rate ?? 100);
+                    const priceDiscounted = unitPrice * unitRate / 100.0;
+                    const amount = (p.amount != null) ? Number(p.amount) : priceDiscounted * qty;
+                    const orderRate = Number(p.order_discount_rate ?? 100);
+                    const amountDiscounted = (p.amount_discounted != null) ? Number(p.amount_discounted) : amount * orderRate / 100.0;
+                    const freight = Number(p.freight ?? 0);
+                    const receivable = (p.receivable != null) ? Number(p.receivable) : (amountDiscounted + freight);
+                    const paidTotal = Number(p.paid_total ?? 0);
+                    const balance = (p.balance != null) ? Number(p.balance) : (receivable - paidTotal);
+
+                    const productDesc = p.product_desc || `${p.name || ''}${p.spec ? ' ' + p.spec : ''}`.trim();
+                    const unit = p.unit || p.spec || '';
+
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${product.id}</td>
-                        <td>${product.image_path ? `<img src="/uploads/thumb_${product.image_path}" class="product-image" onclick="viewImage('/uploads/${product.image_path}')">` : '<span class="text-muted">无</span>'}</td>
-                        <td>${product.name}</td>
-                        <td>¥${parseFloat(product.price).toFixed(2)}</td>
-                        <td>${product.quantity}</td>
-                        <td>${product.spec || '-'}</td>
-                        <td>${product.create_time || '-'}</td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" onclick="editProduct(${product.id}, '${product.name}', ${product.price}, ${product.quantity}, '${product.spec || ''}', '${product.image_path || ''}')"><i class="bi bi-pencil"></i></button>
-                                <button class="btn btn-outline-danger" onclick="deleteProduct(${product.id}, '${product.name}')"><i class="bi bi-trash"></i></button>
-                            </div>
-                        </td>`;
+                      <td>${docDate || '-'}</td>
+                      <td>${p.customer_name || p.name || '-'}</td>
+                      <td>${productDesc || '-'}</td>
+                      <td>${unit || '-'}</td>
+                      <td>${qty || 0}</td>
+                      <td>${unitPrice.toFixed(2)}</td>
+                      <td>${unitRate.toFixed(2)}</td>
+                      <td>${priceDiscounted.toFixed(2)}</td>
+                      <td>${amount.toFixed(2)}</td>
+                      <td>${p.image_path ? `<img src="/uploads/thumb_${p.image_path}" class="product-image" onclick="viewImage('/uploads/${p.image_path}')">` : '<span class="text-muted">无</span>'}</td>
+                      <td>${p.remark || ''}</td>
+                      <td>${freight.toFixed(2)}</td>
+                      <td>${orderRate.toFixed(2)}</td>
+                      <td>${amountDiscounted.toFixed(2)}</td>
+                      <td>${receivable.toFixed(2)}</td>
+                      <td>${Number(p.payment_current ?? 0).toFixed(2)}</td>
+                      <td>${paidTotal.toFixed(2)}</td>
+                      <td>${balance.toFixed(2)}</td>
+                      <td>${p.settlement_account || ''}</td>
+                      <td>${p.description || ''}</td>
+                      <td>${p.salesperson || ''}</td>
+                      <td>${p.update_time || ''}</td>
+                      <td>${p.create_time || ''}</td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-outline-primary" onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.quantity}, '${p.spec || ''}', '${p.image_path || ''}')"><i class="bi bi-pencil"></i></button>
+                          <button class="btn btn-outline-danger" onclick="deleteProduct(${p.id}, '${p.name}')"><i class="bi bi-trash"></i></button>
+                        </div>
+                      </td>`;
                     tbody.appendChild(row);
                 });
             }
