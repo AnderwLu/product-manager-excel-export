@@ -44,35 +44,42 @@
             <div class="row g-3">
                 <div class="col-12">
                     <div class="bg-white rounded shadow-sm p-3">
-                        <form id="productForm" enctype="multipart/form-data">
+                        <form id="productForm" enctype="multipart/form-data" novalidate>
                             <div class="row g-3">
                                 <!-- 第1行：单据日期、客户名称、品名规格、单位 -->
                                 <div class="col-md-3">
-                                    <label class="form-label">单据日期</label>
-                                    <input type="date" class="form-control" id="doc_date" name="doc_date" />
+                                    <label class="form-label">单据日期 <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" id="doc_date" name="doc_date" required />
+                                    <div class="invalid-feedback">单据日期不能为空</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">客户名称 *</label>
+                                    <label class="form-label">客户名称 <span class="text-danger">*</span></label>
                                     <input class="form-control" id="name" name="name" required />
+                                    <div class="invalid-feedback">客户名称不能为空</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">品名规格</label>
-                                    <input class="form-control" id="product_desc" name="product_desc" />
+                                    <label class="form-label">品名规格 <span class="text-danger">*</span></label>
+                                    <input class="form-control" id="product_desc" name="product_desc" required />
+                                    <div class="invalid-feedback">品名规格不能为空</div>
                                 </div>
+
+                                 <div class="col-md-3">
+                                    <label class="form-label">数量 <span class="text-danger">*</span></label>
+                                    <input type="number" class="form-control" id="quantity" name="quantity" min="0" value="0" required />
+                                    <div class="invalid-feedback">数量必须是大于0的数字</div>
+                                </div>
+                                <!-- 第2行：单价、数量、单价折扣率、折后单价 -->
+
                                 <div class="col-md-3">
                                     <label class="form-label">单位</label>
                                     <input class="form-control" id="spec" name="spec" />
                                 </div>
 
-                                <!-- 第2行：单价、数量、单价折扣率、折后单价 -->
                                 <div class="col-md-3">
-                                    <label class="form-label">单价 *</label>
-                                    <input type="number" class="form-control" id="price" name="price" step="0.01" min="0" required />
+                                    <label class="form-label">单价 </label>
+                                    <input type="number" class="form-control" id="price" name="price" step="0.01" min="0" value="0" required />
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">数量 *</label>
-                                    <input type="number" class="form-control" id="quantity" name="quantity" min="0" required />
-                                </div>
+                               
                                 <div class="col-md-3">
                                     <label class="form-label">单价折扣率(%)</label>
                                     <input type="number" class="form-control" id="unit_discount_rate" name="unit_discount_rate" step="0.01" value="100" />
@@ -247,6 +254,7 @@
             document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('productForm').addEventListener('submit', function (e) {
                     e.preventDefault();
+                    if (!validateForm()) { return; }
                     addProduct();
                 });
                 document.getElementById('editProductForm').addEventListener('submit', function (e) {
@@ -255,7 +263,12 @@
                 });
                 // 默认日期
                 const dd = document.getElementById('doc_date');
-                if (dd) dd.value = new Date().toISOString().slice(0,10);
+                // 使用本地时区，避免 toISOString 带来的跨天问题
+                if (dd) {
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    dd.value = now.toISOString().slice(0, 10);
+                }
                 // 绑定计算
                 ['quantity','price','unit_discount_rate','order_discount_rate','freight','payment_current','paid_total']
                     .forEach(id => document.getElementById(id)?.addEventListener('input', recalc));
@@ -280,6 +293,41 @@
                         } else showMessage(d.message, 'error');
                     })
                     .catch(err => showMessage('添加失败: ' + err.message, 'error'));
+            }
+
+            function markInvalid(el, invalid) {
+                if (!el) return;
+                if (invalid) {
+                    el.classList.add('is-invalid');
+                } else {
+                    el.classList.remove('is-invalid');
+                }
+            }
+
+            function validateForm() {
+                let ok = true;
+                const docDate = document.getElementById('doc_date');
+                const name = document.getElementById('name');
+                const productDesc = document.getElementById('product_desc');
+                const quantity = document.getElementById('quantity');
+                const price = document.getElementById('price');
+
+                markInvalid(docDate, !docDate.value);
+                ok = ok && !!docDate.value;
+
+                markInvalid(name, !name.value.trim());
+                ok = ok && !!name.value.trim();
+
+                markInvalid(productDesc, !productDesc.value.trim());
+                ok = ok && !!productDesc.value.trim();
+
+                markInvalid(quantity, quantity.value === '' || Number.isNaN(Number(quantity.value)) || Number(quantity.value) <= 0);
+                ok = ok && !(quantity.value === '' || Number.isNaN(Number(quantity.value)) || Number(quantity.value) <= 0);
+
+                markInvalid(price, price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) <= 0);
+                ok = ok && !(price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) <= 0);
+
+                return ok;
             }
 
             function refreshToday() {

@@ -14,8 +14,13 @@ class ProductService:
         self.file_handler = FileHandler()
         self.validator = ProductValidator()
     
-    def add_product(self, name, price, quantity, spec, image_file):
+    def add_product(self, name, price, quantity, spec, image_file, salesperson=None, doc_date=None, product_desc=None):
         """添加商品"""
+        # 录入必填校验（单据日期、客户名称、品名规格、数量）
+        req = self.validator.validate_entry_required(doc_date, name, product_desc, quantity)
+        if not req.get('valid'):
+            return req
+
         # 数据验证
         validation_result = self.validator.validate_product_data(name, price, quantity)
         if not validation_result['valid']:
@@ -35,7 +40,11 @@ class ProductService:
             price=float(price),
             quantity=int(quantity),
             spec=spec,
-            image_path=image_path
+            image_path=image_path,
+            # 新增字段入库（保持后端流程，未改原有SQL列集）
+            salesperson=salesperson,
+            doc_date=doc_date,
+            product_desc=product_desc
         )
         
         # 保存到数据库

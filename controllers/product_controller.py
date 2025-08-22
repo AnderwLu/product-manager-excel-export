@@ -38,9 +38,17 @@ def add_product():
         quantity = request.form.get('quantity')
         spec = request.form.get('spec', '')
         image_file = request.files.get('image')
+        # 新字段（可选）
+        doc_date = request.form.get('doc_date')
+        product_desc = request.form.get('product_desc')
+        # 后台自动补录营业员
+        salesperson = (session.get('real_name') or session.get('username') or '').strip()
 
         # 使用服务层处理业务逻辑
-        result = product_service.add_product(name, price, quantity, spec, image_file)
+        result = product_service.add_product(name, price, quantity, spec, image_file,
+                                             salesperson=salesperson,
+                                             doc_date=doc_date,
+                                             product_desc=product_desc)
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': f'添加失败: {str(e)}'})

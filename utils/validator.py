@@ -7,6 +7,19 @@ class ProductValidator:
     """商品数据验证类"""
     
     @staticmethod
+    def validate_entry_required(doc_date, name, product_desc, quantity):
+        """录入必填校验：单据日期、客户名称、品名规格、数量"""
+        if not doc_date or not str(doc_date).strip():
+            return { 'valid': False, 'message': '单据日期不能为空' }
+        if not name or not str(name).strip():
+            return { 'valid': False, 'message': '客户名称不能为空' }
+        if not product_desc or not str(product_desc).strip():
+            return { 'valid': False, 'message': '品名规格不能为空' }
+        if quantity in (None, ''):
+            return { 'valid': False, 'message': '数量不能为空' }
+        return { 'valid': True }
+
+    @staticmethod
     def validate_product_data(name, price, quantity):
         """验证商品数据"""
         # 检查必填字段
@@ -16,10 +29,10 @@ class ProductValidator:
                 'message': '商品名称不能为空'
             }
         
-        if not price:
+        if not name:
             return {
                 'valid': False,
-                'message': '价格不能为空'
+                'message': '客户名称不能为空'
             }
         
         if not quantity:
@@ -31,10 +44,10 @@ class ProductValidator:
         # 验证价格
         try:
             price_float = float(price)
-            if price_float <= 0:
+            if price_float < 0:
                 return {
                     'valid': False,
-                    'message': '价格必须大于0'
+                    'message': '价格必须大于等于0'
                 }
         except ValueError:
             return {
