@@ -238,7 +238,6 @@ class ExportService:
             'order_discount_rate': 'order_discount_rate',
             'amount_discounted': 'amount_discounted',
             'receivable': 'receivable',
-            'payment_current': 'payment_current',
             'paid_total': 'paid_total',
             'balance': 'balance',
             'settlement_account': 'settlement_account',
@@ -465,7 +464,6 @@ objExcel.Quit
             'order_discount_rate': '整单折扣率(%)',
             'amount_discounted': '折后金额',
             'receivable': '应收款',
-            'payment_current': '本次收款',
             'paid_total': '已收款',
             'balance': '尾款',
             'settlement_account': '结算账户',
@@ -491,8 +489,8 @@ objExcel.Quit
             order_rate = num(product.get('order_discount_rate', 100))
             freight = num(product.get('freight'))
             paid_total = num(product.get('paid_total'))
-            payment_current = num(product.get('payment_current'))
-
+            # payment_current 字段已移除
+            # payment_current 已删除
             if column == 'doc_date':
                 return product.get('doc_date') or (product.get('create_time') or '')[:10]
             if column == 'customer_name':
@@ -527,8 +525,6 @@ objExcel.Quit
                 base = amount_raw if amount_raw else (unit_price * unit_rate / 100.0 * qty)
                 discounted = base * order_rate / 100.0
                 return f"{(discounted + freight):.2f}"
-            if column == 'payment_current':
-                return f"{payment_current:.2f}"
             if column == 'paid_total':
                 return f"{paid_total:.2f}"
             if column == 'balance':
@@ -581,7 +577,6 @@ objExcel.Quit
             'order_discount_rate': 14,
             'amount_discounted': 14,
             'receivable': 14,
-            'payment_current': 14,
             'paid_total': 14,
             'balance': 14,
             'settlement_account': 16,

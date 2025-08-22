@@ -91,7 +91,7 @@
                                     <th>数量</th><th>单价</th><th>单价折扣率(%)</th><th>折后单价</th>
                                     <th>金额</th><th>图片</th><th>备注</th><th>运费</th>
                                     <th>整单折扣率(%)</th><th>折后金额</th><th>应收款</th>
-                                    <th>本次收款</th><th>已收款</th><th>尾款</th><th>结算账户</th>
+                                    <th>已收款</th><th>尾款</th><th>结算账户</th>
                                     <th>说明</th><th>营业员</th><th>修改时间</th><th>创建时间</th><th>操作</th>
                                 </tr>
                             </thead>
@@ -190,11 +190,6 @@
                                 <span class="drag-handle bi bi-grip-vertical"></span>
                                 <input class="form-check-input col-check" type="checkbox" id="col_receivable" value="receivable" checked>
                                 <label class="form-check-label ms-2" for="col_receivable">应收款</label>
-                            </li>
-                            <li class="draggable-item" draggable="true" data-key="payment_current">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_payment_current" value="payment_current">
-                                <label class="form-check-label ms-2" for="col_payment_current">本次收款</label>
                             </li>
                             <li class="draggable-item" draggable="true" data-key="paid_total">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
@@ -409,7 +404,6 @@
                       <td>${orderRate.toFixed(2)}</td>
                       <td>${amountDiscounted.toFixed(2)}</td>
                       <td>${receivable.toFixed(2)}</td>
-                      <td>${Number(p.payment_current ?? 0).toFixed(2)}</td>
                       <td>${paidTotal.toFixed(2)}</td>
                       <td>${balance.toFixed(2)}</td>
                       <td>${p.settlement_account || ''}</td>

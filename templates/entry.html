@@ -113,23 +113,22 @@
                                     <input class="form-control" id="settlement_account" name="settlement_account" />
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">本次收款</label>
-                                    <input type="number" class="form-control" id="payment_current" name="payment_current" step="0.01" value="0" />
-                                </div>
-                                <div class="col-md-3">
                                     <label class="form-label">已收款</label>
                                     <input type="number" class="form-control" id="paid_total" name="paid_total" step="0.01" value="0" />
                                 </div>
+                                
+                                <div class="col-md-3">
+                                    <label class="form-label">备注</label>
+                                    <input class="form-control" id="remark" name="remark" />
+                                </div>
+
                                 <div class="col-md-3">
                                     <label class="form-label">尾款</label>
                                     <input type="number" class="form-control" id="balance" name="balance" step="0.01" readonly />
                                 </div>
 
                                 <!-- 第5行：备注、说明、图片、营业员 -->
-                                <div class="col-md-3">
-                                    <label class="form-label">备注</label>
-                                    <input class="form-control" id="remark" name="remark" />
-                                </div>
+                          
                                 <div class="col-md-3">
                                     <label class="form-label">说明</label>
                                     <input class="form-control" id="description" name="description" />
@@ -161,7 +160,7 @@
                                         <th>数量</th><th>单价</th><th>单价折扣率(%)</th><th>折后单价</th>
                                         <th>金额</th><th>图片</th><th>备注</th><th>运费</th>
                                         <th>整单折扣率(%)</th><th>折后金额</th><th>应收款</th>
-                                        <th>本次收款</th><th>已收款</th><th>尾款</th><th>结算账户</th>
+                                        <th>已收款</th><th>尾款</th><th>结算账户</th>
                                         <th>说明</th><th>营业员</th><th>修改时间</th><th>创建时间</th><th>操作</th>
                                     </tr>
                                 </thead>
@@ -270,7 +269,7 @@
                     dd.value = now.toISOString().slice(0, 10);
                 }
                 // 绑定计算
-                ['quantity','price','unit_discount_rate','order_discount_rate','freight','payment_current','paid_total']
+                ['quantity','price','unit_discount_rate','order_discount_rate','freight','paid_total']
                     .forEach(id => document.getElementById(id)?.addEventListener('input', recalc));
                 recalc();
                 refreshToday();
@@ -321,11 +320,11 @@
                 markInvalid(productDesc, !productDesc.value.trim());
                 ok = ok && !!productDesc.value.trim();
 
-                markInvalid(quantity, quantity.value === '' || Number.isNaN(Number(quantity.value)) || Number(quantity.value) <= 0);
-                ok = ok && !(quantity.value === '' || Number.isNaN(Number(quantity.value)) || Number(quantity.value) <= 0);
+                markInvalid(quantity, quantity.value === '' || Number.isNaN(Number(quantity.value)) || Number(quantity.value) < 0);
+                ok = ok && !(quantity.value === '' || Number.isNaN(Number(quantity.value)) || Number(quantity.value) < 0);
 
-                markInvalid(price, price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) <= 0);
-                ok = ok && !(price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) <= 0);
+                markInvalid(price, price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) < 0);
+                ok = ok && !(price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) < 0);
 
                 return ok;
             }
@@ -385,7 +384,6 @@
                       <td>${orderRate.toFixed(2)}</td>
                       <td>${amountDiscounted.toFixed(2)}</td>
                       <td>${receivable.toFixed(2)}</td>
-                      <td>${Number(p.payment_current ?? 0).toFixed(2)}</td>
                       <td>${paidTotal.toFixed(2)}</td>
                       <td>${balance.toFixed(2)}</td>
                       <td>${p.settlement_account || ''}</td>
