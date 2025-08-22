@@ -4,7 +4,7 @@
 商品信息管理系统控制器
 """
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, session, redirect, url_for
 from models.product import Product
 from services.export_service import ExportService
 from services.product_service import ProductService
@@ -21,10 +21,17 @@ product_service = ProductService()
 # 创建蓝图
 product_bp = Blueprint('product', __name__)
 
+def ensure_logged_in():
+    if not session.get('user_id'):
+        return False
+    return True
+
 @product_bp.route('/add', methods=['POST'])
 def add_product():
     """添加商品"""
     try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
         # 从表单数据中提取字段
         name = request.form.get('name')
         price = request.form.get('price')
@@ -42,6 +49,8 @@ def add_product():
 def get_products():
     """获取商品列表"""
     try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '')
@@ -78,6 +87,8 @@ def get_products():
 def delete_product():
     """删除商品"""
     try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
         data = request.get_json()
         product_id = data.get('id')
 
@@ -94,6 +105,8 @@ def delete_product():
 def update_product():
     """更新商品"""
     try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
         product_id = request.form.get('id')
         name = request.form.get('name')
         price = request.form.get('price')
@@ -113,6 +126,8 @@ def update_product():
 def export_products():
     """导出商品数据到Excel"""
     try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
         data = request.get_json()
         selected_columns = data.get('columns', [])
         

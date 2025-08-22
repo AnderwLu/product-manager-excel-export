@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>登录 - 商品信息管理</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet" />
+        <style>
+            body { background: #0d6efd; display: flex; align-items: center; min-height: 100vh; }
+            .card { max-width: 420px; margin: auto; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="card shadow">
+                <div class="card-body p-4">
+                    <h4 class="mb-3 text-center">商品信息管理系统</h4>
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label class="form-label">用户名</label>
+                            <input class="form-control" name="username" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">密码</label>
+                            <input type="password" class="form-control" name="password" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">登录</button>
+                    </form>
+                    <div id="msg" class="text-danger small mt-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script>
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                fetch('/auth/login', { method: 'POST', body: formData })
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.success) { window.location.href = '/search'; }
+                        else { document.getElementById('msg').textContent = d.message; }
+                    })
+                    .catch(err => { document.getElementById('msg').textContent = '登录失败: ' + err.message; });
+            });
+        </script>
+    </body>
+</html>
+
