@@ -186,15 +186,34 @@ class Product:
         return None
     
     @classmethod
-    def find_all(cls, page=1, per_page=10, search=None):
+    def find_all(cls, page=1, per_page=10, search=None, product_desc=None, salesperson=None, date_start=None, date_end=None):
         """查找所有商品，支持分页和搜索"""
         offset = (page - 1) * per_page
         
-        where_clause = ""
+        where_parts = []
         params = []
+        # 客户名称模糊（历史保存在 name 列）
         if search:
-            where_clause = "WHERE name LIKE ?"
+            where_parts.append("name LIKE ?")
             params.append(f"%{search}%")
+        # 品名规格模糊
+        if product_desc:
+            where_parts.append("product_desc LIKE ?")
+            params.append(f"%{product_desc}%")
+        # 营业员模糊
+        if salesperson:
+            where_parts.append("salesperson LIKE ?")
+            params.append(f"%{salesperson}%")
+        # 单据日期范围
+        coalesce_date = "COALESCE(doc_date, substr(create_time,1,10))"
+        if date_start:
+            where_parts.append(f"{coalesce_date} >= ?")
+            params.append(date_start)
+        if date_end:
+            where_parts.append(f"{coalesce_date} <= ?")
+            params.append(date_end)
+
+        where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
         
         count_sql = f"SELECT COUNT(*) as total FROM products {where_clause}"
         count_result = db_manager.execute_query(count_sql, params)

@@ -119,7 +119,9 @@ class ProductService:
                 'message': f'删除失败: {str(e)}'
             }
     
-    def update_product(self, product_id, name, price, quantity, spec, image_file):
+    def update_product(self, product_id, name, price, quantity, spec, image_file,
+                       product_desc=None, remark=None, settlement_account=None,
+                       description=None, freight=None, paid_total=None):
         """更新商品"""
         try:
             product = Product.find_by_id(product_id)
@@ -151,6 +153,25 @@ class ProductService:
             product.price = float(price)
             product.quantity = int(quantity)
             product.spec = spec
+            # 其它字段（与录入一致，单据日期不改）
+            if product_desc is not None:
+                product.product_desc = product_desc
+            if remark is not None:
+                product.remark = remark
+            if settlement_account is not None:
+                product.settlement_account = settlement_account
+            if description is not None:
+                product.description = description
+            if freight not in (None, ''):
+                try:
+                    product.freight = float(freight)
+                except Exception:
+                    pass
+            if paid_total not in (None, ''):
+                try:
+                    product.paid_total = float(paid_total)
+                except Exception:
+                    pass
             
             # 保存到数据库
             product.save()

@@ -54,11 +54,6 @@
         <div class="container py-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="mb-0"><i class="bi bi-search"></i> 查询与导出</h3>
-                <div>
-                    <button class="btn btn-outline-secondary btn-sm" id="toggleModeBtn" onclick="toggleMode()">
-                        <i class="bi bi-arrow-left-right"></i> 切换到导出
-                    </button>
-                </div>
             </div>
 
             <ul class="nav nav-tabs mb-3" id="modeTabs" role="tablist">
@@ -73,11 +68,27 @@
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="search-pane" role="tabpanel">
                     <div class="row g-3 align-items-end mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label">按商品名称</label>
-                            <input class="form-control" id="searchInput" placeholder="支持模糊查询" />
+                        <div class="col-md-3">
+                            <label class="form-label">客户名称(模糊)</label>
+                            <input class="form-control" id="searchInput" placeholder="客户名称" />
                         </div>
                         <div class="col-md-3">
+                            <label class="form-label">品名规格(模糊)</label>
+                            <input class="form-control" id="searchProductDesc" placeholder="品名规格" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">营业员(模糊)</label>
+                            <input class="form-control" id="searchSalesperson" placeholder="营业员" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">单据日期(起止)</label>
+                            <div class="d-flex gap-1">
+                                <input type="date" class="form-control" id="dateStart" />
+                                <span class="align-self-center">~</span>
+                                <input type="date" class="form-control" id="dateEnd" />
+                            </div>
+                        </div>
+                        <div class="col-md-12">
                             <button class="btn btn-primary" onclick="searchProducts()"><i class="bi bi-search"></i> 查询</button>
                             <button class="btn btn-outline-secondary" onclick="resetSearch()"><i class="bi bi-x-lg"></i> 重置</button>
                         </div>
@@ -121,15 +132,10 @@
                                 <input class="form-check-input col-check" type="checkbox" id="col_doc_date" value="doc_date" checked>
                                 <label class="form-check-label ms-2" for="col_doc_date">单据日期</label>
                             </li>
-                            <li class="draggable-item" draggable="true" data-key="customer_name">
+                            <li class="draggable-item" draggable="true" data-key="name">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_customer" value="customer_name" checked>
-                                <label class="form-check-label ms-2" for="col_customer">客户名称</label>
-                            </li>
-                            <li class="draggable-item" draggable="true" data-key="product_desc">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_product_desc" value="product_desc" checked>
-                                <label class="form-check-label ms-2" for="col_product_desc">品名规格</label>
+                                <input class="form-check-input col-check" type="checkbox" id="col_name" value="name" checked>
+                                <label class="form-check-label ms-2" for="col_name">品名规格</label>
                             </li>
                             <li class="draggable-item" draggable="true" data-key="unit">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
@@ -146,6 +152,31 @@
                                 <input class="form-check-input col-check" type="checkbox" id="col_unit_price" value="unit_price" checked>
                                 <label class="form-check-label ms-2" for="col_unit_price">单价</label>
                             </li>
+                            <li class="draggable-item" draggable="true" data-key="amount">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_amount" value="amount" checked>
+                                <label class="form-check-label ms-2" for="col_amount">金额</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="remark">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_remark" value="remark" checked>
+                                <label class="form-check-label ms-2" for="col_remark">备注</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="image">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_image" value="image" checked>
+                                <label class="form-check-label ms-2" for="col_image">图片</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="description">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_description" value="description" checked>
+                                <label class="form-check-label ms-2" for="col_description">说明</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="salesperson">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_salesperson" value="salesperson" checked>
+                                <label class="form-check-label ms-2" for="col_salesperson">营业员</label>
+                            </li>
                             <li class="draggable-item" draggable="true" data-key="unit_discount_rate">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
                                 <input class="form-check-input col-check" type="checkbox" id="col_udr" value="unit_discount_rate">
@@ -155,21 +186,6 @@
                                 <span class="drag-handle bi bi-grip-vertical"></span>
                                 <input class="form-check-input col-check" type="checkbox" id="col_upd" value="unit_price_discounted">
                                 <label class="form-check-label ms-2" for="col_upd">折后单价</label>
-                            </li>
-                            <li class="draggable-item" draggable="true" data-key="amount">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_amount" value="amount">
-                                <label class="form-check-label ms-2" for="col_amount">金额</label>
-                            </li>
-                            <li class="draggable-item" draggable="true" data-key="image">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_image" value="image" checked>
-                                <label class="form-check-label ms-2" for="col_image">图片</label>
-                            </li>
-                            <li class="draggable-item" draggable="true" data-key="remark">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_remark" value="remark" checked>
-                                <label class="form-check-label ms-2" for="col_remark">备注</label>
                             </li>
                             <li class="draggable-item" draggable="true" data-key="freight">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
@@ -188,7 +204,7 @@
                             </li>
                             <li class="draggable-item" draggable="true" data-key="receivable">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_receivable" value="receivable" checked>
+                                <input class="form-check-input col-check" type="checkbox" id="col_receivable" value="receivable">
                                 <label class="form-check-label ms-2" for="col_receivable">应收款</label>
                             </li>
                             <li class="draggable-item" draggable="true" data-key="paid_total">
@@ -206,16 +222,6 @@
                                 <input class="form-check-input col-check" type="checkbox" id="col_settlement_account" value="settlement_account">
                                 <label class="form-check-label ms-2" for="col_settlement_account">结算账户</label>
                             </li>
-                            <li class="draggable-item" draggable="true" data-key="description">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_description" value="description">
-                                <label class="form-check-label ms-2" for="col_description">说明</label>
-                            </li>
-                            <li class="draggable-item" draggable="true" data-key="salesperson">
-                                <span class="drag-handle bi bi-grip-vertical"></span>
-                                <input class="form-check-input col-check" type="checkbox" id="col_salesperson" value="salesperson">
-                                <label class="form-check-label ms-2" for="col_salesperson">营业员</label>
-                            </li>
                             <li class="draggable-item" draggable="true" data-key="update_time">
                                 <span class="drag-handle bi bi-grip-vertical"></span>
                                 <input class="form-check-input col-check" type="checkbox" id="col_update_time" value="update_time">
@@ -226,6 +232,11 @@
                                 <input class="form-check-input col-check" type="checkbox" id="col_create_time" value="create_time">
                                 <label class="form-check-label ms-2" for="col_create_time">创建时间</label>
                             </li>
+                            <li class="draggable-item" draggable="true" data-key="customer_name">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_customer" value="customer_name">
+                                <label class="form-check-label ms-2" for="col_customer">客户名称</label>
+                            </li>
                         </ul>
                         </div>
                     </div>
@@ -235,7 +246,7 @@
 
         <!-- 编辑模态框复用 -->
         <div class="modal fade" id="editProductModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title"><i class="bi bi-pencil"></i> 修改商品</h5>
@@ -245,27 +256,58 @@
                         <div class="modal-body">
                             <input type="hidden" id="editProductId" name="id" />
                             <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">名称 *</label>
+                                <div class="col-md-3">
+                                    <label class="form-label">单据日期</label>
+                                    <input class="form-control" id="editDocDate" name="doc_date" disabled />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">客户名称 *</label>
                                     <input class="form-control" id="editName" name="name" required />
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">价格 *</label>
+                                <div class="col-md-3">
+                                    <label class="form-label">品名规格 *</label>
+                                    <input class="form-control" id="editProductDesc" name="product_desc" required />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">单位</label>
+                                    <input class="form-control" id="editSpec" name="spec" />
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">单价 *</label>
                                     <input type="number" step="0.01" min="0" class="form-control" id="editPrice" name="price" required />
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <label class="form-label">数量 *</label>
                                     <input type="number" min="0" class="form-control" id="editQuantity" name="quantity" required />
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">规格</label>
-                                    <input class="form-control" id="editSpec" name="spec" />
+                                <div class="col-md-3">
+                                    <label class="form-label">运费</label>
+                                    <input type="number" step="0.01" class="form-control" id="editFreight" name="freight" />
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
+                                    <label class="form-label">已收款</label>
+                                    <input type="number" step="0.01" class="form-control" id="editPaidTotal" name="paid_total" />
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label">备注</label>
+                                    <input class="form-control" id="editRemark" name="remark" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">结算账户</label>
+                                    <input class="form-control" id="editSettlement" name="settlement_account" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">说明</label>
+                                    <input class="form-control" id="editDescription" name="description" />
+                                </div>
+
+                                <div class="col-md-3">
                                     <label class="form-label">新图片</label>
                                     <input type="file" class="form-control" id="editImage" name="image" accept="image/*" />
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-3">
                                     <label class="form-label">当前图片</label>
                                     <div id="currentImageDisplay" class="border rounded p-2 text-center"><span class="text-muted">无图片</span></div>
                                 </div>
@@ -340,7 +382,19 @@
 
             function loadProducts(page = 1, search = '') {
                 const searchParam = search || document.getElementById('searchInput').value;
-                const url = `/product/list?page=${page}&per_page=10${searchParam ? '&search=' + encodeURIComponent(searchParam) : ''}`;
+                const productDesc = document.getElementById('searchProductDesc').value;
+                const salesperson = document.getElementById('searchSalesperson').value;
+                const dateStart = document.getElementById('dateStart').value;
+                const dateEnd = document.getElementById('dateEnd').value;
+                const q = new URLSearchParams({
+                    page: String(page), per_page: '10'
+                });
+                if (searchParam) q.append('search', searchParam);
+                if (productDesc) q.append('product_desc', productDesc);
+                if (salesperson) q.append('salesperson', salesperson);
+                if (dateStart) q.append('date_start', dateStart);
+                if (dateEnd) q.append('date_end', dateEnd);
+                const url = `/product/list?${q.toString()}`;
                 fetch(url)
                     .then(r => r.json())
                     .then(data => {
@@ -358,10 +412,22 @@
 
             function resetSearch() {
                 document.getElementById('searchInput').value = '';
+                document.getElementById('searchProductDesc').value = '';
+                document.getElementById('searchSalesperson').value = '';
+                document.getElementById('dateStart').value = '';
+                document.getElementById('dateEnd').value = '';
                 loadProducts(1, '');
             }
 
-            function searchProducts() { loadProducts(1); }
+            function searchProducts() {
+                const s = document.getElementById('dateStart').value;
+                const e = document.getElementById('dateEnd').value;
+                if (s && e && s > e) {
+                    showMessage('开始日期不能大于截止日期', 'error');
+                    return;
+                }
+                loadProducts(1);
+            }
 
             function displayProducts(products) {
                 const tbody = document.getElementById('productTableBody');
@@ -501,12 +567,19 @@
                 new bootstrap.Toast(toast).show();
             }
 
-            function editProduct(id, name, price, quantity, spec, imagePath) {
+            function editProduct(id, name, price, quantity, spec, imagePath, extra = {}) {
                 document.getElementById('editProductId').value = id;
-                document.getElementById('editName').value = name;
+                document.getElementById('editDocDate').value = extra.doc_date || '';
+                document.getElementById('editName').value = extra.customer_name || name || '';
+                document.getElementById('editProductDesc').value = extra.product_desc || '';
                 document.getElementById('editPrice').value = price;
                 document.getElementById('editQuantity').value = quantity;
-                document.getElementById('editSpec').value = spec || '';
+                document.getElementById('editSpec').value = extra.unit || spec || '';
+                document.getElementById('editFreight').value = extra.freight || 0;
+                document.getElementById('editPaidTotal').value = extra.paid_total || 0;
+                document.getElementById('editRemark').value = extra.remark || '';
+                document.getElementById('editSettlement').value = extra.settlement_account || '';
+                document.getElementById('editDescription').value = extra.description || '';
                 const current = document.getElementById('currentImageDisplay');
                 current.innerHTML = imagePath ? `<img src="/uploads/thumb_${imagePath}" class="product-image" onclick="viewImage('/uploads/${imagePath}')">` : '<span class="text-muted">无图片</span>';
                 new bootstrap.Modal(document.getElementById('editProductModal')).show();

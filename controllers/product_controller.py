@@ -73,9 +73,19 @@ def get_products():
             return jsonify({'success': False, 'message': '未登录'}), 401
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
-        search = request.args.get('search', '')
+        search = request.args.get('search', '')  # 客户名称模糊
+        product_desc = request.args.get('product_desc', '')
+        salesperson = request.args.get('salesperson', '')
+        date_start = request.args.get('date_start', '')
+        date_end = request.args.get('date_end', '')
         
-        result = Product.find_all(page, per_page, search)
+        result = Product.find_all(
+            page, per_page, search,
+            product_desc=product_desc or None,
+            salesperson=salesperson or None,
+            date_start=date_start or None,
+            date_end=date_end or None
+        )
         logger.info(f"获取商品列表: total={result.get('total')}, page={page}, per_page={per_page}")
 
         if not result or 'products' not in result:
@@ -137,7 +147,23 @@ def update_product():
         if not product_id:
             return jsonify({'success': False, 'message': '商品ID不能为空'})
 
-        result = product_service.update_product(product_id, name, price, quantity, spec, image_file)
+        # 其余可改字段，与录入一致（单据日期禁改）
+        product_desc = request.form.get('product_desc')
+        remark = request.form.get('remark')
+        settlement_account = request.form.get('settlement_account')
+        description = request.form.get('description')
+        freight = request.form.get('freight')
+        paid_total = request.form.get('paid_total')
+
+        result = product_service.update_product(
+            product_id, name, price, quantity, spec, image_file,
+            product_desc=product_desc,
+            remark=remark,
+            settlement_account=settlement_account,
+            description=description,
+            freight=freight,
+            paid_total=paid_total
+        )
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': f'更新失败: {str(e)}'})
