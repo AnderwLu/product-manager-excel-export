@@ -20,6 +20,11 @@
                 box-shadow: 0 0 .6rem rgba(13,110,253,.55);
             }
             .navbar .nav-link:hover { color: #fff; }
+            /* 导出列拖拽样式 */
+            #columnList { margin: 0; padding: 0; }
+            #columnList .draggable-item { display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem; border: 1px solid #e9ecef; border-radius: .5rem; margin-bottom: .5rem; background: #f8f9fa; }
+            #columnList .draggable-item .drag-handle { cursor: grab; color: #6c757d; }
+            #columnList .draggable-item.dragging { opacity: .6; }
         </style>
     </head>
     <body class="bg-light">
@@ -87,37 +92,50 @@
 
                 <div class="tab-pane fade" id="export-pane" role="tabpanel">
                     <div class="bg-white rounded shadow-sm p-3">
-                        <h5 class="mb-3"><i class="bi bi-download"></i> 导出Excel</h5>
-                        <div class="row g-2 align-items-center">
-                            <div class="col-12 col-md-8">
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="col_name" value="name" checked>
-                                    <label class="form-check-label" for="col_name">商品名称</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="col_price" value="price" checked>
-                                    <label class="form-check-label" for="col_price">价格</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="col_quantity" value="quantity" checked>
-                                    <label class="form-check-label" for="col_quantity">数量</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="col_spec" value="spec">
-                                    <label class="form-check-label" for="col_spec">规格</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="col_image" value="image_path">
-                                    <label class="form-check-label" for="col_image">图片</label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input" type="checkbox" id="col_time" value="create_time">
-                                    <label class="form-check-label" for="col_time">创建时间</label>
-                                </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-3"><i class="bi bi-download"></i> 导出Excel</h5>
+                            <div class="mb-2">
+                                <small class="text-muted">勾选导出列，拖拽调顺序</small>
                             </div>
-                            <div class="col-12 col-md-4 text-md-end">
-                                <button class="btn btn-success" onclick="exportProducts()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
-                            </div>
+                        </div>
+
+                        <ul id="columnList" class="list-unstyled">
+                            <li class="draggable-item" draggable="true" data-key="name">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_name" value="name" checked>
+                                <label class="form-check-label ms-2" for="col_name">商品名称</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="price">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_price" value="price" checked>
+                                <label class="form-check-label ms-2" for="col_price">价格</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="quantity">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_quantity" value="quantity" checked>
+                                <label class="form-check-label ms-2" for="col_quantity">数量</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="spec">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_spec" value="spec">
+                                <label class="form-check-label ms-2" for="col_spec">规格</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="image_path">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_image" value="image_path">
+                                <label class="form-check-label ms-2" for="col_image">图片</label>
+                            </li>
+                            <li class="draggable-item" draggable="true" data-key="create_time">
+                                <span class="drag-handle bi bi-grip-vertical"></span>
+                                <input class="form-check-input col-check" type="checkbox" id="col_time" value="create_time">
+                                <label class="form-check-label ms-2" for="col_time">创建时间</label>
+                            </li>
+                        </ul>
+
+                        <div class="text-end">
+                            <button class="btn btn-outline-secondary me-2" onclick="toggleAllColumns(true)">全选</button>
+                            <button class="btn btn-outline-secondary me-2" onclick="toggleAllColumns(false)">全不选</button>
+                            <button class="btn btn-success" onclick="exportProducts()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
                         </div>
                     </div>
                 </div>
@@ -211,6 +229,9 @@
                     e.preventDefault();
                     updateProduct();
                 });
+
+                // 初始化拖拽排序
+                initDragSort();
             });
 
             function toggleMode() {
@@ -306,7 +327,13 @@
             }
 
             function exportProducts() {
-                const selected = Array.from(document.querySelectorAll('#export-pane input[type="checkbox"]:checked')).map(cb => cb.value);
+                // 根据DOM顺序收集已勾选列
+                const items = Array.from(document.querySelectorAll('#columnList > li'));
+                const selected = [];
+                items.forEach(li => {
+                    const input = li.querySelector('input.col-check');
+                    if (input && input.checked) selected.push(input.value);
+                });
                 if (selected.length === 0) return showMessage('请至少选择一列进行导出', 'error');
                 fetch('/product/export', {
                     method: 'POST',
@@ -403,6 +430,50 @@
                 img.onload = function () { img.style.opacity = '1'; img.alt = '商品原图'; };
                 img.onerror = function () { img.alt = '图片加载失败'; img.style.opacity = '0.3'; showMessage('图片加载失败', 'error'); };
                 new bootstrap.Modal(document.getElementById('imageViewModal')).show();
+            }
+
+            function toggleAllColumns(checked) {
+                document.querySelectorAll('#columnList input.col-check').forEach(cb => cb.checked = checked);
+            }
+
+            // 简易拖拽排序实现
+            function initDragSort() {
+                const list = document.getElementById('columnList');
+                list.addEventListener('dragstart', (e) => {
+                    const li = e.target.closest('li.draggable-item');
+                    if (!li) return;
+                    li.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                list.addEventListener('dragend', (e) => {
+                    const li = e.target.closest('li.draggable-item');
+                    if (!li) return;
+                    li.classList.remove('dragging');
+                });
+                list.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    const afterElement = getDragAfterElement(list, e.clientY);
+                    const dragging = list.querySelector('.dragging');
+                    if (!dragging) return;
+                    if (afterElement == null) {
+                        list.appendChild(dragging);
+                    } else {
+                        list.insertBefore(dragging, afterElement);
+                    }
+                });
+            }
+
+            function getDragAfterElement(container, y) {
+                const els = [...container.querySelectorAll('li.draggable-item:not(.dragging)')];
+                return els.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
             }
         </script>
     </body>
