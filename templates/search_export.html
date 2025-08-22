@@ -31,6 +31,8 @@
             #exportToolbar { display: flex; align-items: center; gap: .5rem; }
             #columnListContainer { flex: 1 1 auto; overflow: auto; padding-top: .25rem; }
             .center-hint { text-align: center; color: #6c757d; }
+            /* 列表不换行，靠外层 .table-responsive 横向滚动 */
+            .table-nowrap th, .table-nowrap td { white-space: nowrap; }
         </style>
     </head>
     <body class="bg-light">
@@ -82,7 +84,7 @@
                     </div>
 
                     <div class="table-responsive bg-white rounded shadow-sm p-3">
-                        <table class="table table-striped align-middle">
+                        <table class="table table-striped align-middle table-nowrap">
                             <thead class="table-dark">
                                 <tr>
                                     <th>单据日期</th><th>客户名称</th><th>品名规格</th><th>单位</th>

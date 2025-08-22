@@ -20,6 +20,8 @@
                 box-shadow: 0 0 .6rem rgba(13,110,253,.55);
             }
             .navbar .nav-link:hover { color: #fff; }
+            /* 列表不换行，靠外层 .table-responsive 横向滚动 */
+            .table-nowrap th, .table-nowrap td { white-space: nowrap; }
         </style>
     </head>
     <body class="bg-light">
@@ -44,6 +46,7 @@
                     <div class="bg-white rounded shadow-sm p-3">
                         <form id="productForm" enctype="multipart/form-data">
                             <div class="row g-3">
+                                <!-- 第1行：单据日期、客户名称、品名规格、单位 -->
                                 <div class="col-md-3">
                                     <label class="form-label">单据日期</label>
                                     <input type="date" class="form-control" id="doc_date" name="doc_date" />
@@ -61,78 +64,72 @@
                                     <input class="form-control" id="spec" name="spec" />
                                 </div>
 
-                                <div class="col-md-2">
-                                    <label class="form-label">数量 *</label>
-                                    <input type="number" class="form-control" id="quantity" name="quantity" min="0" required />
-                                </div>
-                                <div class="col-md-2">
+                                <!-- 第2行：单价、数量、单价折扣率、折后单价 -->
+                                <div class="col-md-3">
                                     <label class="form-label">单价 *</label>
                                     <input type="number" class="form-control" id="price" name="price" step="0.01" min="0" required />
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
+                                    <label class="form-label">数量 *</label>
+                                    <input type="number" class="form-control" id="quantity" name="quantity" min="0" required />
+                                </div>
+                                <div class="col-md-3">
                                     <label class="form-label">单价折扣率(%)</label>
                                     <input type="number" class="form-control" id="unit_discount_rate" name="unit_discount_rate" step="0.01" value="100" />
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <label class="form-label">折后单价</label>
                                     <input type="number" class="form-control" id="unit_price_discounted" name="unit_price_discounted" step="0.01" readonly />
                                 </div>
-                                <div class="col-md-2">
-                                    <label class="form-label">金额</label>
-                                    <input type="number" class="form-control" id="amount" name="amount" step="0.01" readonly />
-                                </div>
 
+                                <!-- 第3行：运费、整单折扣率、折后金额、应收款 -->
                                 <div class="col-md-3">
-                                    <label class="form-label">图片</label>
-                                    <input type="file" class="form-control" id="image" name="image" accept="image/*" />
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">备注</label>
-                                    <input class="form-control" id="remark" name="remark" />
-                                </div>
-                                <div class="col-md-2">
                                     <label class="form-label">运费</label>
                                     <input type="number" class="form-control" id="freight" name="freight" step="0.01" value="0" />
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <label class="form-label">整单折扣率(%)</label>
                                     <input type="number" class="form-control" id="order_discount_rate" name="order_discount_rate" step="0.01" value="100" />
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <label class="form-label">折后金额</label>
                                     <input type="number" class="form-control" id="amount_discounted" name="amount_discounted" step="0.01" readonly />
                                 </div>
-                                <div class="col-md-2">
+                                <div class="col-md-3">
                                     <label class="form-label">应收款</label>
                                     <input type="number" class="form-control" id="receivable" name="receivable" step="0.01" readonly />
                                 </div>
-                                <div class="col-md-2">
-                                    <label class="form-label">本次收款</label>
-                                    <input type="number" class="form-control" id="payment_current" name="payment_current" step="0.01" value="0" />
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label">已收款</label>
-                                    <input type="number" class="form-control" id="paid_total" name="paid_total" step="0.01" value="0" />
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label">尾款</label>
-                                    <input type="number" class="form-control" id="balance" name="balance" step="0.01" readonly />
-                                </div>
+
+                                <!-- 第4行：结算账户、本次收款、已收款、尾款 -->
                                 <div class="col-md-3">
                                     <label class="form-label">结算账户</label>
                                     <input class="form-control" id="settlement_account" name="settlement_account" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">本次收款</label>
+                                    <input type="number" class="form-control" id="payment_current" name="payment_current" step="0.01" value="0" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">已收款</label>
+                                    <input type="number" class="form-control" id="paid_total" name="paid_total" step="0.01" value="0" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">尾款</label>
+                                    <input type="number" class="form-control" id="balance" name="balance" step="0.01" readonly />
+                                </div>
+
+                                <!-- 第5行：备注、说明、图片、营业员 -->
+                                <div class="col-md-3">
+                                    <label class="form-label">备注</label>
+                                    <input class="form-control" id="remark" name="remark" />
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">说明</label>
                                     <input class="form-control" id="description" name="description" />
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label">营业员</label>
-                                    <input class="form-control" id="salesperson" name="salesperson" />
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">修改时间</label>
-                                    <input class="form-control" id="update_time" name="update_time" readonly />
+                                    <label class="form-label">图片</label>
+                                    <input type="file" class="form-control" id="image" name="image" accept="image/*" />
                                 </div>
                             </div>
                             <div class="mt-3">
@@ -150,7 +147,7 @@
                             <button class="btn btn-outline-secondary btn-sm" onclick="refreshToday()"><i class="bi bi-arrow-clockwise"></i> 刷新</button>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-striped align-middle">
+                            <table class="table table-striped align-middle table-nowrap">
                                 <thead class="table-dark">
                                     <tr>
                                         <th>单据日期</th><th>客户名称</th><th>品名规格</th><th>单位</th>
