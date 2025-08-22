@@ -10,7 +10,29 @@ class Product:
     """商品模型类"""
     
     def __init__(self, id=None, name=None, price=None, quantity=None, 
-                 spec=None, image_path=None, create_time=None):
+                 spec=None, image_path=None, create_time=None,
+                 # 新增字段（保持为可选，默认值不影响旧流程）
+                 doc_date=None,                 # 单据日期
+                 customer_name=None,            # 客户名称
+                 product_desc=None,             # 品名规格
+                 unit=None,                     # 单位（原表：规格）
+                 unit_price=None,               # 单价（原表：价格）
+                 unit_discount_rate=None,       # 单价折扣率(%)
+                 unit_price_discounted=None,    # 折后单价
+                 amount=None,                   # 金额
+                 remark=None,                   # 备注
+                 freight=None,                  # 运费
+                 order_discount_rate=None,      # 整单折扣率(%)
+                 amount_discounted=None,        # 折后金额
+                 receivable=None,               # 应收款
+                 payment_current=None,          # 本次收款
+                 paid_total=None,               # 已收款
+                 balance=None,                  # 尾款
+                 settlement_account=None,       # 结算账户
+                 description=None,              # 说明
+                 salesperson=None,              # 营业员
+                 update_time=None               # 修改时间
+                 ):
         self.id = id
         self.name = name
         self.price = price
@@ -18,10 +40,32 @@ class Product:
         self.spec = spec
         self.image_path = image_path
         self.create_time = create_time or datetime.now()
+
+        # 新增字段
+        self.doc_date = doc_date
+        self.customer_name = customer_name
+        self.product_desc = product_desc
+        self.unit = unit
+        self.unit_price = unit_price
+        self.unit_discount_rate = unit_discount_rate
+        self.unit_price_discounted = unit_price_discounted
+        self.amount = amount
+        self.remark = remark
+        self.freight = freight
+        self.order_discount_rate = order_discount_rate
+        self.amount_discounted = amount_discounted
+        self.receivable = receivable
+        self.payment_current = payment_current
+        self.paid_total = paid_total
+        self.balance = balance
+        self.settlement_account = settlement_account
+        self.description = description
+        self.salesperson = salesperson
+        self.update_time = update_time
     
     @classmethod
     def create_table(cls):
-        """创建商品表"""
+        """创建/升级商品表（仅新增字段，不改变既有写入逻辑）"""
         sql = '''
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,12 +77,47 @@ class Product:
                 create_time TEXT DEFAULT (datetime('now'))
             )
         '''
-        return db_manager.execute_update(sql)
-    
+        db_manager.execute_update(sql)
+        # 自动补齐新增列
+        cls._ensure_columns()
+        return True
+
+    @classmethod
+    def _ensure_columns(cls):
+        """为已存在表补齐缺失列（只做 ADD COLUMN）"""
+        # 期望列: 列名 -> SQL 片段
+        expected = {
+            'doc_date': "TEXT DEFAULT (date('now'))",
+            'customer_name': "TEXT",
+            'product_desc': "TEXT",
+            'unit': "TEXT",
+            'unit_price': "REAL",
+            'unit_discount_rate': "REAL DEFAULT 100",
+            'unit_price_discounted': "REAL",
+            'amount': "REAL",
+            'remark': "TEXT",
+            'freight': "REAL DEFAULT 0",
+            'order_discount_rate': "REAL DEFAULT 100",
+            'amount_discounted': "REAL",
+            'receivable': "REAL",
+            'payment_current': "REAL DEFAULT 0",
+            'paid_total': "REAL DEFAULT 0",
+            'balance': "REAL",
+            'settlement_account': "TEXT",
+            'description': "TEXT",
+            'salesperson': "TEXT",
+            'update_time': "TEXT DEFAULT (datetime('now'))"
+        }
+        cols = db_manager.execute_query("PRAGMA table_info(products)")
+        have = {c['name'] for c in cols} if cols else set()
+        for col, ddl in expected.items():
+            if col not in have:
+                db_manager.execute_update(f"ALTER TABLE products ADD COLUMN {col} {ddl}")
+
     def save(self):
         """保存商品到数据库"""
         if self.id:
-            # 更新
+            # 更新（保持原有字段集合，不动业务逻辑）
             sql = '''
                 UPDATE products 
                 SET name=?, price=?, quantity=?, spec=?, image_path=?
@@ -48,7 +127,7 @@ class Product:
                      self.image_path, self.id)
             return db_manager.execute_update(sql, params)
         else:
-            # 插入
+            # 插入（保持原有字段集合，不动业务逻辑）
             sql = '''
                 INSERT INTO products (name, price, quantity, spec, image_path)
                 VALUES (?, ?, ?, ?, ?)
@@ -71,19 +150,16 @@ class Product:
         """查找所有商品，支持分页和搜索"""
         offset = (page - 1) * per_page
         
-        # 构建查询条件
         where_clause = ""
         params = []
         if search:
             where_clause = "WHERE name LIKE ?"
             params.append(f"%{search}%")
         
-        # 查询总数
         count_sql = f"SELECT COUNT(*) as total FROM products {where_clause}"
         count_result = db_manager.execute_query(count_sql, params)
         total = count_result[0]['total'] if count_result else 0
         
-        # 查询数据
         data_sql = f'''
             SELECT * FROM products {where_clause}
             ORDER BY create_time DESC
@@ -92,12 +168,7 @@ class Product:
         params.extend([per_page, offset])
         products_data = db_manager.execute_query(data_sql, params)
         
-        # 转换为Product对象
-        products = []
-        for data in products_data:
-            product = cls(**data)
-            products.append(product)
-        
+        products = [cls(**data) for data in products_data]
         return {
             'products': products,
             'total': total,
@@ -114,13 +185,34 @@ class Product:
         return False
     
     def to_dict(self):
-        """转换为字典格式"""
+        """转换为字典格式（包含新增字段）"""
         return {
             'id': self.id,
             'name': self.name,
-            'price': float(self.price) if self.price else None,
+            'price': float(self.price) if self.price is not None else None,
             'quantity': self.quantity,
             'spec': self.spec,
             'image_path': self.image_path,
-            'create_time': str(self.create_time) if self.create_time else None
+            'create_time': str(self.create_time) if self.create_time else None,
+
+            'doc_date': self.doc_date,
+            'customer_name': self.customer_name,
+            'product_desc': self.product_desc,
+            'unit': self.unit,
+            'unit_price': self.unit_price,
+            'unit_discount_rate': self.unit_discount_rate,
+            'unit_price_discounted': self.unit_price_discounted,
+            'amount': self.amount,
+            'remark': self.remark,
+            'freight': self.freight,
+            'order_discount_rate': self.order_discount_rate,
+            'amount_discounted': self.amount_discounted,
+            'receivable': self.receivable,
+            'payment_current': self.payment_current,
+            'paid_total': self.paid_total,
+            'balance': self.balance,
+            'settlement_account': self.settlement_account,
+            'description': self.description,
+            'salesperson': self.salesperson,
+            'update_time': self.update_time
         }
