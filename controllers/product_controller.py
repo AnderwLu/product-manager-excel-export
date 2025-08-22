@@ -176,6 +176,8 @@ def export_products():
             return jsonify({'success': False, 'message': '未登录'}), 401
         data = request.get_json()
         selected_columns = data.get('columns', [])
+        # 读取筛选条件（与 /list 一致）
+        filters = data.get('filters', {})
         
         if not selected_columns:
             return jsonify({'success': False, 'message': '请选择要导出的列'})
@@ -183,7 +185,14 @@ def export_products():
         logger.info(f"导出请求 - 选择的列: {selected_columns}")
         
         # 获取所有商品数据
-        result = Product.find_all(page=1, per_page=10000)  # 获取所有数据
+        result = Product.find_all(
+            page=1, per_page=1000000,
+            search=filters.get('search'),
+            product_desc=filters.get('product_desc'),
+            salesperson=filters.get('salesperson'),
+            date_start=filters.get('date_start'),
+            date_end=filters.get('date_end')
+        )
         products = result['products']
         
         logger.info(f"获取到 {len(products)} 条商品数据")

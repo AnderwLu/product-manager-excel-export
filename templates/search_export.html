@@ -89,8 +89,9 @@
                             </div>
                         </div>
                         <div class="col-md-12">
-                            <button class="btn btn-primary" onclick="searchProducts()"><i class="bi bi-search"></i> 查询</button>
-                            <button class="btn btn-outline-secondary" onclick="resetSearch()"><i class="bi bi-x-lg"></i> 重置</button>
+                            <button class="btn btn-primary me-2" onclick="searchProducts()"><i class="bi bi-search"></i> 查询</button>
+                            <button class="btn btn-success me-2" onclick="exportWithFilters()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
+                            <button class="btn btn-outline-secondary me-2" onclick="resetSearch()"><i class="bi bi-x-lg"></i> 重置</button>
                         </div>
                     </div>
 
@@ -523,10 +524,18 @@
                     if (input && input.checked) selected.push(input.value);
                 });
                 if (selected.length === 0) return showMessage('请至少选择一列进行导出', 'error');
+                // 携带当前筛选条件
+                const filters = {
+                    search: document.getElementById('searchInput').value || undefined,
+                    product_desc: document.getElementById('searchProductDesc').value || undefined,
+                    salesperson: document.getElementById('searchSalesperson').value || undefined,
+                    date_start: document.getElementById('dateStart').value || undefined,
+                    date_end: document.getElementById('dateEnd').value || undefined
+                };
                 fetch('/product/export', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ columns: selected })
+                    body: JSON.stringify({ columns: selected, filters })
                 })
                     .then(response => {
                         if (!response.ok) throw new Error('导出失败');
@@ -552,6 +561,9 @@
                     })
                     .catch(err => showMessage('导出失败: ' + err.message, 'error'));
             }
+
+            // 提供一个按钮调用的封装，效果等同 exportProducts
+            function exportWithFilters() { exportProducts(); }
 
             function showMessage(message, type = 'info') {
                 const toast = document.getElementById('messageToast');
