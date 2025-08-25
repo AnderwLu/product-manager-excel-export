@@ -8,9 +8,12 @@
       {
         "ignore": [
           "user-select",
-          "-webkit-text-size-adjust"
+          "-webkit-text-size-adjust",
+          "text-align: -webkit-match-parent",
+          "-webkit-overflow-scrolling"
         ]
       }
-    ]
+    ],
+    "css-prefix-order": "off"
   }
 }
