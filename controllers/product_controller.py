@@ -176,15 +176,59 @@ def export_products():
     try:
         if not ensure_logged_in():
             return jsonify({'success': False, 'message': '未登录'}), 401
-        data = request.get_json()
-        selected_columns = data.get('columns', [])
+        data = request.get_json() or {}
         # 读取筛选条件（与 /list 一致）
         filters = data.get('filters', {})
+
+        # 根据当前登录用户的列设置动态确定导出列（与查询/编辑一致）
+        import json
+        def _normalize_key(k: str):
+            if k == 'name':
+                return 'product_desc'
+            if k == 'image':
+                return 'image_path'
+            return k
+        def _to_export_key(k: str):
+            # 仅将内部图片键转换为导出服务的图片键，其它键保持不变
+            if k == 'image_path':
+                return 'image'
+            return k
+
+        # 读取用户偏好（与 /product/columns/load 相同来源）
+        try:
+            pref_raw = UserPreference.get_pref(session.get('user_id'), 'export_columns')
+            cfg = json.loads(pref_raw) if pref_raw else []
+        except Exception:
+            cfg = []
+
+        # 默认列（与前端 BASE_COLUMNS 顺序保持一致，必要时可调整）
+        default_internal_keys = [
+            'doc_date','customer_name','product_desc','unit','quantity','unit_price',
+            'unit_discount_rate','unit_price_discounted','amount','image_path','remark','freight',
+            'order_discount_rate','amount_discounted','receivable','paid_total','balance',
+            'settlement_account','description','salesperson','update_time','create_time'
+        ]
+
+        # 从偏好中挑选选中的列；兼容 {checked} 或 {hidden}
+        selected_internal_keys = []
+        if isinstance(cfg, list) and cfg:
+            for c in cfg:
+                try:
+                    key = _normalize_key((c.get('key') if isinstance(c, dict) else None) or '')
+                    if not key:
+                        continue
+                    checked = (c.get('checked') is True) or (c.get('checked') is None and c.get('hidden') is not True)
+                    if checked and key not in selected_internal_keys:
+                        selected_internal_keys.append(key)
+                except Exception:
+                    continue
+        if not selected_internal_keys:
+            selected_internal_keys = default_internal_keys
+
+        # 转为导出服务所需键
+        selected_columns = [_to_export_key(k) for k in selected_internal_keys]
         
-        if not selected_columns:
-            return jsonify({'success': False, 'message': '请选择要导出的列'})
-        
-        logger.info(f"导出请求 - 选择的列: {selected_columns}")
+        logger.info(f"导出请求 - 选择的列(后端解析): {selected_columns}")
         
         # 获取所有商品数据
         result = Product.find_all(
