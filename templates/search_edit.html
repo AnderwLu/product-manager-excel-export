@@ -255,6 +255,12 @@
                         { title: '营业员', field: 'salesperson' },
                         { title: '修改时间', field: 'update_time' },
                         { title: '创建时间', field: 'create_time' },
+                        { title: '操作', field: 'actions', headerSort: false, hozAlign: 'center', formatter: function(cell){
+                            const d = cell.getRow().getData();
+                            const id = d && d.id != null ? d.id : '';
+                            const name = (d && (d.customer_name || d.name)) || '';
+                            return `<button class="btn btn-outline-danger btn-sm" onclick="deleteProduct(${id}, '${name.replace(/'/g, "\\'")}')"><i class='bi bi-trash'></i></button>`;
+                        }},
                     ],
                     cellEdited: function(cell){
                         const field = cell.getField();
@@ -424,6 +430,22 @@
                     .catch(err => showMessage('加载失败: ' + err.message, 'error'));
             }
 
+            function deleteProduct(id, name){
+                const displayName = name || ((rowCache.get(id) || {}).customer_name) || '';
+                if (!confirm(`确定删除该条记录${displayName ? `（${displayName}）` : ''}？`)) return;
+                fetch('/product/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                })
+                  .then(r => r.json())
+                  .then(d => {
+                      if (d && d.success) { showMessage(d.message || '删除成功', 'success'); loadProducts(currentPage); }
+                      else { showMessage((d && d.message) || '删除失败', 'error'); }
+                  })
+                  .catch(err => showMessage('删除失败: ' + err.message, 'error'));
+            }
+
             function normalizeRow(p){
                 return Object.assign({}, p, {
                     unit: (p.unit || p.spec || ''),
@@ -591,7 +613,7 @@
                 const holder = document.getElementById('grid');
                 const cols = (typeof getActiveColumns === 'function' ? getActiveColumns() : []).filter(c => !c.hidden);
                 const head = cols.map(c => `<th class="col-${c.key}">${c.title}</th>`).join('');
-                holder.innerHTML = `<div class="table-responsive"><table class="table table-striped align-middle table-nowrap" id="fallbackTable"><thead><tr>${head}</tr></thead><tbody></tbody></table></div>`;
+                holder.innerHTML = `<div class="table-responsive"><table class="table table-striped align-middle table-nowrap" id="fallbackTable"><thead><tr>${head}<th class="col-actions">操作</th></tr></thead><tbody></tbody></table></div>`;
             }
 
             function gridReplaceData(rows){
@@ -632,7 +654,8 @@
                         update_time: (d.update_time||''),
                         create_time: (d.create_time||'')
                     };
-                    tr.innerHTML = cols.map(c => `<td class=\"col-${c.key}\">${cellMap[c.key]||''}</td>`).join('');
+                    const opsHtml = `<td class=\"col-actions\"><button class=\"btn btn-outline-danger btn-sm\" onclick=\"deleteProduct(${d.id})\"><i class='bi bi-trash'></i></button></td>`;
+                    tr.innerHTML = cols.map(c => `<td class=\"col-${c.key}\">${cellMap[c.key]||''}</td>`).join('') + opsHtml;
                     tbody.appendChild(tr);
                 });
                 tbody.querySelectorAll('input[data-field]').forEach(inp => {
