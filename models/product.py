@@ -74,7 +74,7 @@ class Product:
                 quantity INTEGER NOT NULL,
                 spec TEXT,
                 image_path TEXT,
-                create_time TEXT DEFAULT (datetime('now'))
+                create_time TEXT DEFAULT (datetime('now','+8 hours'))
             )
         '''
         db_manager.execute_update(sql)
@@ -87,7 +87,7 @@ class Product:
         """为已存在表补齐缺失列（只做 ADD COLUMN）"""
         # 期望列: 列名 -> SQL 片段
         expected = {
-            'doc_date': "TEXT DEFAULT (date('now'))",
+            'doc_date': "TEXT DEFAULT (date('now','+8 hours'))",
             'customer_name': "TEXT",
             'product_desc': "TEXT",
             'unit': "TEXT",
@@ -106,7 +106,7 @@ class Product:
             'settlement_account': "TEXT",
             'description': "TEXT",
             'salesperson': "TEXT",
-            'update_time': "TEXT DEFAULT (datetime('now'))"
+            'update_time': "TEXT DEFAULT (datetime('now','+8 hours'))"
         }
         cols = db_manager.execute_query("PRAGMA table_info(products)")
         have = {c['name'] for c in cols} if cols else set()
@@ -122,7 +122,8 @@ class Product:
                 UPDATE products 
                 SET name=?, price=?, quantity=?, spec=?, image_path=?,
                     doc_date=?, customer_name=?, product_desc=?, unit=?, unit_price=?,
-                    remark=?, settlement_account=?, description=?, salesperson=?, freight=?, paid_total=?
+                    remark=?, settlement_account=?, description=?, salesperson=?, freight=?, paid_total=?,
+                    update_time=datetime('now','+8 hours')
                 WHERE id=?
             '''
             params = (
@@ -151,9 +152,10 @@ class Product:
                 INSERT INTO products (
                     name, price, quantity, spec, image_path,
                     doc_date, customer_name, product_desc, unit, unit_price,
-                    remark, settlement_account, description, salesperson, freight, paid_total
+                    remark, settlement_account, description, salesperson, freight, paid_total,
+                    update_time
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','+8 hours'))
             '''
             params = (
                 self.name,

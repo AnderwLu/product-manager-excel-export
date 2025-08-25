@@ -233,7 +233,7 @@ class ProductService:
                     set_parts.append(f"{k}=?")
                     params.append(v)
                 # 自动更新 update_time
-                set_parts.append("update_time=datetime('now')")
+                set_parts.append("update_time=datetime('now','+8 hours')")
                 sql = f"UPDATE products SET {', '.join(set_parts)} WHERE id=?"
                 params.append(pid)
 
