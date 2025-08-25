@@ -154,7 +154,7 @@ def update_product():
         description = request.form.get('description')
         freight = request.form.get('freight')
         paid_total = request.form.get('paid_total')
-
+        delete_image = request.form.get('delete_image')
         result = product_service.update_product(
             product_id, name, price, quantity, spec, image_file,
             product_desc=product_desc,
@@ -162,7 +162,8 @@ def update_product():
             settlement_account=settlement_account,
             description=description,
             freight=freight,
-            paid_total=paid_total
+            paid_total=paid_total,
+            delete_image=delete_image
         )
         return jsonify(result)
     except Exception as e:

@@ -259,7 +259,7 @@
                             <div class="row g-3">
                                 <div class="col-md-3">
                                     <label class="form-label">单据日期</label>
-                                    <input class="form-control" id="editDocDate" name="doc_date" disabled />
+                                    <input type="date" class="form-control" id="editDocDate" name="doc_date" />
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">客户名称 *</label>
@@ -311,6 +311,10 @@
                                 <div class="col-md-3">
                                     <label class="form-label">当前图片</label>
                                     <div id="currentImageDisplay" class="border rounded p-2 text-center"><span class="text-muted">无图片</span></div>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="editDeleteImage" name="delete_image" value="1" />
+                                        <label class="form-check-label" for="editDeleteImage">删除当前图片</label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -455,6 +459,7 @@
                     const unit = p.unit || p.spec || '';
 
                     const row = document.createElement('tr');
+                    const extraEnc = encodeURIComponent(JSON.stringify(p));
                     row.innerHTML = `
                       <td>${docDate || '-'}</td>
                       <td>${p.customer_name || p.name || '-'}</td>
@@ -480,7 +485,7 @@
                       <td>${p.create_time || ''}</td>
                       <td>
                         <div class="btn-group btn-group-sm">
-                          <button class="btn btn-outline-primary" onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.quantity}, '${p.spec || ''}', '${p.image_path || ''}')"><i class="bi bi-pencil"></i></button>
+                          <button class="btn btn-outline-primary" onclick="editProductWithData('${extraEnc}')"><i class="bi bi-pencil"></i></button>
                           <button class="btn btn-outline-danger" onclick="deleteProduct(${p.id}, '${p.name}')"><i class="bi bi-trash"></i></button>
                         </div>
                       </td>`;
@@ -581,7 +586,7 @@
 
             function editProduct(id, name, price, quantity, spec, imagePath, extra = {}) {
                 document.getElementById('editProductId').value = id;
-                document.getElementById('editDocDate').value = extra.doc_date || '';
+                document.getElementById('editDocDate').value = (extra.doc_date || '').slice(0,10);
                 document.getElementById('editName').value = extra.customer_name || name || '';
                 document.getElementById('editProductDesc').value = extra.product_desc || '';
                 document.getElementById('editPrice').value = price;
@@ -594,7 +599,16 @@
                 document.getElementById('editDescription').value = extra.description || '';
                 const current = document.getElementById('currentImageDisplay');
                 current.innerHTML = imagePath ? `<img src="/uploads/thumb_${imagePath}" class="product-image" onclick="viewImage('/uploads/${imagePath}')">` : '<span class="text-muted">无图片</span>';
+                const del = document.getElementById('editDeleteImage');
+                if (del) del.checked = false;
                 new bootstrap.Modal(document.getElementById('editProductModal')).show();
+            }
+
+            function editProductWithData(enc) {
+                try {
+                    const extra = JSON.parse(decodeURIComponent(enc));
+                    editProduct(extra.id, extra.name, extra.price, extra.quantity, extra.spec || '', extra.image_path || '', extra);
+                } catch (e) { console.error(e); }
             }
 
             function deleteProduct(id, name) {
