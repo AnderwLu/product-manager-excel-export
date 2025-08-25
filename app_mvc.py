@@ -45,6 +45,10 @@ def create_app():
     def search_page():
         return render_template('search_export.html')
 
+    @app.route('/search-edit')
+    def search_edit_page():
+        return render_template('search_edit.html')
+
     @app.route('/entry')
     def entry_page():
         return render_template('entry.html')

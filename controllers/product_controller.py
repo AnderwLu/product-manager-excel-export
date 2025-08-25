@@ -269,3 +269,38 @@ def export_products():
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'success': False, 'message': f'导出失败: {str(e)}'})
+
+@product_bp.route('/batch_update', methods=['POST'])
+def batch_update_products():
+    """批量更新商品部分字段"""
+    try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
+        data = request.get_json() or {}
+        items = data.get('items') or []
+        result = product_service.batch_update_products(items)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f'批量更新失败: {str(e)}')
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'批量更新失败: {str(e)}'})
+
+@product_bp.route('/update_image', methods=['POST'])
+def update_product_image():
+    """更新或删除商品图片"""
+    try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
+        product_id = request.form.get('id') or request.args.get('id')
+        if not product_id:
+            return jsonify({'success': False, 'message': '商品ID不能为空'})
+        image_file = request.files.get('image')
+        delete_image = request.form.get('delete_image') in ('1', 'true', 'True', 'on')
+        result = product_service.update_product_image(int(product_id), image_file=image_file, delete_image=delete_image)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f'更新图片失败: {str(e)}')
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': f'更新图片失败: {str(e)}'})

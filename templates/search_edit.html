@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>查询与编辑 - 商品信息管理</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet" />
+        <link href="/static/lib/tabulator/tabulator.min.css" rel="stylesheet" />
+        <style>
+            body { padding-top: 64px; }
+            .product-image { max-width: 80px; max-height: 80px; object-fit: cover; cursor: pointer; }
+            .nav-tabs .nav-link.active { font-weight: 600; }
+            .navbar .navbar-nav { gap: 1.25rem; }
+            .navbar .nav-link { color: rgba(255,255,255,.7); font-weight: 600; }
+            .navbar .nav-link.active { color: #fff !important; background-color: #0d6efd; border-radius: .5rem; padding: .25rem .85rem; box-shadow: 0 0 .6rem rgba(13,110,253,.55); }
+            .navbar .nav-link:hover { color: #fff; }
+            .table-nowrap th, .table-nowrap td { white-space: nowrap; }
+            .changed { background-color: #e7f5ff !important; }
+            /* 默认让容器自适应高度，避免将分页切到中间 */
+            #grid { height: auto; overflow: visible; }
+            .tabulator-cell .btn { padding: .1rem .4rem; font-size: .75rem; }
+            /* 分页条固定到底部且靠右 */
+            /* 分页条置于内容之后，避免遮挡 */
+            .pager-bar { position: static; background: #fff; padding-top: .5rem; border-top: 1px solid #eee; }
+            .grid-card { padding-bottom: .5rem; }
+            /* 降级表格时为关键输入列提供更宽显示 */
+            #fallbackTable td:nth-child(3) input,   /* 客户名称 */
+            #fallbackTable td:nth-child(4) input,   /* 品名规格 */
+            #fallbackTable td:nth-child(5) input,   /* 单位 */
+            #fallbackTable td:nth-child(6) input,   /* 数量 */
+            #fallbackTable td:nth-child(7) input,   /* 单价 */
+            #fallbackTable td:nth-child(11) input,  /* 备注 */
+            #fallbackTable td:nth-child(12) input,  /* 运费 */
+            #fallbackTable td:nth-child(16) input,  /* 已收款 */
+            #fallbackTable td:nth-child(18) input,  /* 结算账户 */
+            #fallbackTable td:nth-child(19) input   /* 说明 */
+            { min-width: 140px; }
+        </style>
+    </head>
+    <body class="bg-light">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">商品管理</a>
+                <div class="navbar-nav mx-auto flex-row">
+                    <a class="nav-link active" aria-current="page" href="/search-edit">查询/编辑</a>
+                    <a class="nav-link" href="/search">查询/导出</a>
+                    <a class="nav-link" href="/entry">录入</a>
+                    <a class="nav-link" href="/auth/users">用户管理</a>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span class="text-white-50 me-3">{{ (session.get('real_name') or session.get('username')) or '' }}</span>
+                    <button class="btn btn-outline-light btn-sm" onclick="logout()">退出</button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container py-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="mb-0"><i class="bi bi-pencil-square"></i> 查询与编辑</h3>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="saveAllChanges()"><i class="bi bi-save"></i> 保存修改</button>
+                    <button class="btn btn-outline-secondary" onclick="resetChanges()"><i class="bi bi-arrow-counterclockwise"></i> 取消本页修改</button>
+                </div>
+            </div>
+
+            <div class="alert alert-info py-2">
+                说明：查询结果单元格可直接编辑。修改将以浅蓝色标记，点击“保存修改”一次性提交。
+            </div>
+
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">客户名称(模糊)</label>
+                    <input class="form-control" id="searchInput" placeholder="客户名称" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">品名规格(模糊)</label>
+                    <input class="form-control" id="searchProductDesc" placeholder="品名规格" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">营业员(模糊)</label>
+                    <input class="form-control" id="searchSalesperson" placeholder="营业员" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">单据日期(起止)</label>
+                    <div class="d-flex gap-1">
+                        <input type="date" class="form-control" id="dateStart" />
+                        <span class="align-self-center">~</span>
+                        <input type="date" class="form-control" id="dateEnd" />
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <button class="btn btn-primary me-2" onclick="searchProducts()"><i class="bi bi-search"></i> 查询</button>
+                    <button class="btn btn-outline-secondary me-2" onclick="resetSearch()"><i class="bi bi-x-lg"></i> 重置</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded shadow-sm p-3 position-relative grid-card">
+                <div id="grid"></div>
+                <div class="clearfix"></div>
+                <nav aria-label="分页" class="pager-bar"><ul class="pagination justify-content-end m-0" id="pagination"></ul></nav>
+            </div>
+        </div>
+
+        <div class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="messageToast" class="toast" role="alert">
+                <div class="toast-header">
+                    <strong class="me-auto">系统消息</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body" id="toastMessage"></div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script id="tabulator-js" src="/static/lib/tabulator/tabulator.min.js"></script>
+        <script>
+            let currentPage = 1;
+            let totalPages = 1;
+            const dirtyMap = new Map(); // id -> partial fields
+            let grid = null;
+            let useFallback = false; // 当 Tabulator 不可用时启用降级渲染
+            const allowedFields = new Set(['doc_date','customer_name','product_desc','unit','quantity','unit_price','unit_discount_rate','remark','freight','order_discount_rate','paid_total','settlement_account','description']);
+
+            document.addEventListener('DOMContentLoaded', function () {
+                if (typeof Tabulator === 'undefined') {
+                    useFallback = true;
+                    initFallbackGrid();
+                    loadProducts();
+                } else {
+                    initGrid();
+                    loadProducts();
+                }
+            });
+
+            function initGrid() {
+                grid = new Tabulator('#grid', {
+                    data: [],
+                    layout: 'fitDataStretch',
+                    index: 'id',
+                    reactiveData: false,
+                    columnDefaults: { headerHozAlign: 'center', vertAlign: 'middle' },
+                    columns: [
+                        { title: '图片', field: 'image_path', width: 160, hozAlign: 'center', headerSort: false, formatter: imageFormatter },
+                        { title: '单据日期', field: 'doc_date', editor: 'input', editorParams: { elementAttributes: { type: 'date' } }, width: 130 },
+                        { title: '客户名称', field: 'customer_name', editor: 'input', width: 240 },
+                        { title: '品名规格', field: 'product_desc', editor: 'input', width: 300 },
+                        { title: '单位', field: 'unit', editor: 'input', width: 100 },
+                        { title: '数量', field: 'quantity', editor: 'number', width: 120 },
+                        { title: '单价', field: 'unit_price', editor: 'number', width: 140, formatter: decimal2 },
+                        { title: '单价折扣率(%)', field: 'unit_discount_rate', editor: 'number', width: 130, formatter: decimal2 },
+                        { title: '折后单价', field: 'unit_price_discounted', width: 110, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcUnitPriceDiscounted(cell.getRow().getData())); } },
+                        { title: '金额', field: 'amount', width: 100, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcAmount(cell.getRow().getData())); } },
+                        { title: '备注', field: 'remark', editor: 'input', width: 220 },
+                        { title: '运费', field: 'freight', editor: 'number', width: 120, formatter: decimal2 },
+                        { title: '整单折扣率(%)', field: 'order_discount_rate', editor: 'number', width: 140, formatter: decimal2 },
+                        { title: '折后金额', field: 'amount_discounted', width: 120, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcAmountDiscounted(cell.getRow().getData())); } },
+                        { title: '应收款', field: 'receivable', width: 110, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcReceivable(cell.getRow().getData())); } },
+                        { title: '已收款', field: 'paid_total', editor: 'number', width: 140, formatter: decimal2 },
+                        { title: '尾款', field: 'balance', width: 110, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcBalance(cell.getRow().getData())); } },
+                        { title: '结算账户', field: 'settlement_account', editor: 'input', width: 200 },
+                        { title: '说明', field: 'description', editor: 'input', width: 220 },
+                        { title: '营业员', field: 'salesperson', width: 120 },
+                        { title: '修改时间', field: 'update_time', width: 160 },
+                        { title: '创建时间', field: 'create_time', width: 160 },
+                    ],
+                    cellEdited: function(cell){
+                        const field = cell.getField();
+                        if (!allowedFields.has(field)) return;
+                        const row = cell.getRow();
+                        const id = row.getIndex();
+                        let val = cell.getValue();
+                        if (typeof val === 'string' && val.trim() === '') val = null;
+                        const prev = dirtyMap.get(id) || {};
+                        prev[field] = val;
+                        dirtyMap.set(id, prev);
+                        row.getElement().classList.add('changed');
+                        row.reformat();
+                    }
+                });
+            }
+
+            function imageFormatter(cell){
+                const data = cell.getRow().getData();
+                const has = !!data.image_path;
+                const imgHtml = has ? `<img src="/uploads/thumb_${data.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${data.image_path}')">` : '<span class="text-muted">无</span>';
+                return `${imgHtml}<div class="mt-1">
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="onChangeImage(${data.id})">更换</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="onDeleteImage(${data.id})">删除</button>
+                </div>`;
+            }
+
+            function onChangeImage(id){
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = () => {
+                    const file = input.files && input.files[0];
+                    if (!file) return;
+                    const fd = new FormData();
+                    fd.append('id', String(id));
+                    fd.append('image', file);
+                    fetch('/product/update_image', { method: 'POST', body: fd })
+                      .then(r => r.json())
+                      .then(d => {
+                          if (!d.success) return showMessage(d.message || '图片更新失败', 'error');
+                          showMessage('图片更新成功', 'success');
+                          const row = grid.getRow(id);
+                          if (row) { row.update({ image_path: d.filename || null }); }
+                      })
+                      .catch(err => showMessage('图片更新失败: ' + err.message, 'error'));
+                };
+                input.click();
+            }
+
+            function onDeleteImage(id){
+                if (!confirm('确定删除该行图片？')) return;
+                const fd = new FormData();
+                fd.append('id', String(id));
+                fd.append('delete_image', '1');
+                fetch('/product/update_image', { method: 'POST', body: fd })
+                  .then(r => r.json())
+                  .then(d => {
+                      if (!d.success) return showMessage(d.message || '删除失败', 'error');
+                      showMessage('图片已删除', 'success');
+                      const row = grid.getRow(id);
+                      if (row) { row.update({ image_path: null }); }
+                  })
+                  .catch(err => showMessage('删除失败: ' + err.message, 'error'));
+            }
+
+            function loadProducts(page = 1) {
+                const q = new URLSearchParams({ page: String(page), per_page: '10' });
+                const searchParam = document.getElementById('searchInput').value;
+                const productDesc = document.getElementById('searchProductDesc').value;
+                const salesperson = document.getElementById('searchSalesperson').value;
+                const dateStart = document.getElementById('dateStart').value;
+                const dateEnd = document.getElementById('dateEnd').value;
+                if (searchParam) q.append('search', searchParam);
+                if (productDesc) q.append('product_desc', productDesc);
+                if (salesperson) q.append('salesperson', salesperson);
+                if (dateStart) q.append('date_start', dateStart);
+                if (dateEnd) q.append('date_end', dateEnd);
+                fetch(`/product/list?${q.toString()}`)
+                    .then(r => r.json())
+                    .then(d => {
+                        if (!d.success) return showMessage(d.message, 'error');
+                        const products = (d.data.products || []).map(normalizeRow);
+                        gridReplaceData(products);
+                        displayPagination(d.data.page, d.data.total_pages);
+                        currentPage = d.data.page; totalPages = d.data.total_pages;
+                    })
+                    .catch(err => showMessage('加载失败: ' + err.message, 'error'));
+            }
+
+            function normalizeRow(p){
+                return Object.assign({}, p, {
+                    unit: (p.unit || p.spec || ''),
+                    unit_price: Number(p.unit_price ?? p.price ?? 0),
+                });
+            }
+
+            function searchProducts() {
+                const s = document.getElementById('dateStart').value;
+                const e = document.getElementById('dateEnd').value;
+                if (s && e && s > e) { showMessage('开始日期不能大于截止日期', 'error'); return; }
+                loadProducts(1);
+            }
+
+            function resetSearch() {
+                ['searchInput','searchProductDesc','searchSalesperson','dateStart','dateEnd']
+                  .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                loadProducts(1);
+            }
+
+            function displayPagination(current, total) {
+                const pagination = document.getElementById('pagination');
+                pagination.innerHTML = '';
+                if (total <= 1) return;
+                const add = (disabled, text, page) => {
+                    const li = document.createElement('li');
+                    li.className = `page-item ${disabled ? 'disabled' : ''}`;
+                    li.innerHTML = `<a class="page-link" href="#">${text}</a>`;
+                    if (!disabled) li.querySelector('a').onclick = () => loadProducts(page);
+                    pagination.appendChild(li);
+                };
+                add(current === 1, '上一页', current - 1);
+                for (let i = 1; i <= total; i++) {
+                    if (i === 1 || i === total || (i >= current - 2 && i <= current + 2)) {
+                        const li = document.createElement('li');
+                        li.className = `page-item ${i === current ? 'active' : ''}`;
+                        li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                        if (i !== current) li.querySelector('a').onclick = () => loadProducts(i);
+                        pagination.appendChild(li);
+                    } else if (i === current - 3 || i === current + 3) {
+                        const li = document.createElement('li'); li.className = 'page-item disabled';
+                        li.innerHTML = '<span class="page-link">...</span>'; pagination.appendChild(li);
+                    }
+                }
+                add(current === total, '下一页', current + 1);
+                // 清理可能遗留的两个分页条（旧节点）
+                const pagers = document.querySelectorAll('.grid-card nav.pager-bar');
+                if (pagers.length > 1) {
+                    for (let i = 0; i < pagers.length - 1; i++) {
+                        pagers[i].remove();
+                    }
+                }
+            }
+
+            function renderRows(products) {
+                const tbody = document.getElementById('productTableBody');
+                tbody.innerHTML = '';
+                if (!products.length) { tbody.innerHTML = '<tr><td colspan="22" class="text-center">暂无数据</td></tr>'; return; }
+                products.forEach(p => {
+                    const docDate = p.doc_date || (p.create_time || '').slice(0,10);
+                    const unitPrice = Number(p.unit_price ?? p.price ?? 0);
+                    const qty = Number(p.quantity ?? 0);
+                    const unitRate = Number(p.unit_discount_rate ?? 100);
+                    const priceDiscounted = unitPrice * unitRate / 100.0;
+                    const amount = (p.amount != null) ? Number(p.amount) : priceDiscounted * qty;
+                    const orderRate = Number(p.order_discount_rate ?? 100);
+                    const amountDiscounted = (p.amount_discounted != null) ? Number(p.amount_discounted) : amount * orderRate / 100.0;
+                    const freight = Number(p.freight ?? 0);
+                    const receivable = (p.receivable != null) ? Number(p.receivable) : (amountDiscounted + freight);
+                    const paidTotal = Number(p.paid_total ?? 0);
+                    const balance = (p.balance != null) ? Number(p.balance) : (receivable - paidTotal);
+
+                    const unit = p.unit || p.spec || '';
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = p.id;
+                    tr.innerHTML = `
+                        <td class="editable">${editableInput('doc_date', docDate, 'date')}</td>
+                        <td class="editable">${editableInput('customer_name', p.customer_name || p.name || '')}</td>
+                        <td class="editable">${editableInput('product_desc', p.product_desc || '')}</td>
+                        <td class="editable">${editableInput('unit', unit)}</td>
+                        <td class="editable">${editableInput('quantity', qty, 'number')}</td>
+                        <td class="editable">${editableInput('unit_price', unitPrice, 'number', { step: '0.01' })}</td>
+                        <td class="editable">${editableInput('unit_discount_rate', unitRate, 'number', { step: '0.01' })}</td>
+                        <td>${(unitPrice * unitRate / 100.0).toFixed(2)}</td>
+                        <td>${amount.toFixed(2)}</td>
+                        <td class="editable">${editableInput('remark', p.remark || '')}</td>
+                        <td class="editable">${editableInput('freight', freight, 'number', { step: '0.01' })}</td>
+                        <td class="editable">${editableInput('order_discount_rate', orderRate, 'number', { step: '0.01' })}</td>
+                        <td>${amountDiscounted.toFixed(2)}</td>
+                        <td>${receivable.toFixed(2)}</td>
+                        <td class="editable">${editableInput('paid_total', paidTotal, 'number', { step: '0.01' })}</td>
+                        <td>${balance.toFixed(2)}</td>
+                        <td class="editable">${editableInput('settlement_account', p.settlement_account || '')}</td>
+                        <td class="editable">${editableInput('description', p.description || '')}</td>
+                        <td>${p.salesperson || ''}</td>
+                        <td>${p.update_time || ''}</td>
+                        <td>${p.create_time || ''}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                // 绑定变更事件
+                tbody.querySelectorAll('input[data-field]').forEach(inp => {
+                    inp.addEventListener('change', onCellChange);
+                    inp.addEventListener('input', markRowDirtyOnInput);
+                });
+            }
+
+            function editableInput(field, value, type = 'text', attrs = {}) {
+                const attrStr = Object.entries(attrs).map(([k,v]) => `${k}="${v}"`).join(' ');
+                const val = (value == null) ? '' : value;
+                return `<input class="form-control form-control-sm" data-field="${field}" type="${type}" ${attrStr} value="${escapeHtml(String(val))}">`;
+            }
+
+            function escapeHtml(str) { return str.replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
+
+            function onCellChange(e) {
+                const input = e.target;
+                const tr = input.closest('tr');
+                const id = Number(tr.dataset.id);
+                const field = input.dataset.field;
+                let val = input.value;
+                if (input.type === 'number') val = (val === '' ? null : Number(val));
+                if (input.type === 'date') val = val || null;
+                const prev = dirtyMap.get(id) || {};
+                prev[field] = val;
+                dirtyMap.set(id, prev);
+                tr.classList.add('changed');
+            }
+
+            function markRowDirtyOnInput(e) {
+                const tr = e.target.closest('tr');
+                tr?.classList.add('changed');
+            }
+
+            function saveAllChanges() {
+                if (dirtyMap.size === 0) { showMessage('没有需要保存的修改', 'warning'); return; }
+                const items = Array.from(dirtyMap.entries()).map(([id, fields]) => ({ id, fields }));
+                fetch('/product/batch_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                })
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) return showMessage(d.message || '保存失败', 'error');
+                    showMessage(`保存完成：成功 ${d.data.success_count} 条，失败 ${d.data.fail_count} 条`, 'success');
+                    dirtyMap.clear();
+                    loadProducts(currentPage);
+                })
+                .catch(err => showMessage('保存失败: ' + err.message, 'error'));
+            }
+
+            // 计算 & 格式化
+            function num(n){ const v = Number(n); return Number.isFinite(v) ? v : 0; }
+            function calcUnitPriceDiscounted(d){ return num(d.unit_price) * (num(d.unit_discount_rate) || 100) / 100.0; }
+            function calcAmount(d){ return calcUnitPriceDiscounted(d) * num(d.quantity); }
+            function calcAmountDiscounted(d){ return calcAmount(d) * (num(d.order_discount_rate) || 100) / 100.0; }
+            function calcReceivable(d){ return calcAmountDiscounted(d) + num(d.freight); }
+            function calcBalance(d){ return calcReceivable(d) - num(d.paid_total); }
+            function toFixed2(x){ return num(x).toFixed(2); }
+            function decimal2(cell){ const v = cell.getValue(); return toFixed2(v); }
+
+            // ========== 降级渲染（无 Tabulator 时） ==========
+            function initFallbackGrid(){
+                const holder = document.getElementById('grid');
+                holder.innerHTML = '<div class="table-responsive"><table class="table table-striped align-middle table-nowrap" id="fallbackTable"><thead><tr>\
+                <th>图片</th><th>单据日期</th><th>客户名称</th><th>品名规格</th><th>单位</th>\
+                <th>数量</th><th>单价</th><th>单价折扣率(%)</th><th>折后单价</th><th>金额</th>\
+                <th>备注</th><th>运费</th><th>整单折扣率(%)</th><th>折后金额</th><th>应收款</th>\
+                <th>已收款</th><th>尾款</th><th>结算账户</th><th>说明</th><th>营业员</th><th>修改时间</th><th>创建时间</th>\
+                </tr></thead><tbody></tbody></table></div>';
+            }
+
+            function gridReplaceData(rows){
+                if (!useFallback) { grid.replaceData(rows); return; }
+                const tbody = document.querySelector('#fallbackTable tbody');
+                tbody.innerHTML = '';
+                rows.forEach(d => {
+                    const tr = document.createElement('tr');
+                    tr.setAttribute('data-id', d.id);
+                    const imgHtml = d.image_path ? `<img src="/uploads/thumb_${d.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${d.image_path}')">` : '<span class="text-muted">无</span>';
+                    const unit = d.unit || '';
+                    tr.innerHTML = `
+                        <td>${imgHtml}<div class="mt-1"><button class="btn btn-sm btn-outline-primary me-1" onclick="onChangeImage(${d.id})">更换</button><button class="btn btn-sm btn-outline-danger" onclick="onDeleteImage(${d.id})">删除</button></div></td>
+                        <td><input class="form-control form-control-sm" type="date" data-field="doc_date" value="${(d.doc_date||'').slice(0,10)}"></td>
+                        <td><input class="form-control form-control-sm" data-field="customer_name" value="${escapeHtml(d.customer_name||d.name||'')}"></td>
+                        <td><input class="form-control form-control-sm" data-field="product_desc" value="${escapeHtml(d.product_desc||'')}"></td>
+                        <td><input class="form-control form-control-sm" data-field="unit" value="${escapeHtml(unit)}"></td>
+                        <td><input class="form-control form-control-sm" type="number" data-field="quantity" value="${Number(d.quantity||0)}"></td>
+                        <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="unit_price" value="${Number(d.unit_price||0)}"></td>
+                        <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="unit_discount_rate" value="${Number(d.unit_discount_rate||100)}"></td>
+                        <td>${toFixed2(calcUnitPriceDiscounted(d))}</td>
+                        <td>${toFixed2(calcAmount(d))}</td>
+                        <td><input class="form-control form-control-sm" data-field="remark" value="${escapeHtml(d.remark||'')}"></td>
+                        <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="freight" value="${Number(d.freight||0)}"></td>
+                        <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="order_discount_rate" value="${Number(d.order_discount_rate||100)}"></td>
+                        <td>${toFixed2(calcAmountDiscounted(d))}</td>
+                        <td>${toFixed2(calcReceivable(d))}</td>
+                        <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="paid_total" value="${Number(d.paid_total||0)}"></td>
+                        <td>${toFixed2(calcBalance(d))}</td>
+                        <td><input class="form-control form-control-sm" data-field="settlement_account" value="${escapeHtml(d.settlement_account||'')}"></td>
+                        <td><input class="form-control form-control-sm" data-field="description" value="${escapeHtml(d.description||'')}"></td>
+                        <td>${d.salesperson||''}</td>
+                        <td>${d.update_time||''}</td>
+                        <td>${d.create_time||''}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                tbody.querySelectorAll('input[data-field]').forEach(inp => {
+                    inp.addEventListener('change', function(e){
+                        const tr = e.target.closest('tr');
+                        const id = Number(tr.getAttribute('data-id'));
+                        const field = e.target.getAttribute('data-field');
+                        let val = e.target.value;
+                        if (e.target.type === 'number') val = (val === '' ? null : Number(val));
+                        if (e.target.type === 'date') val = val || null;
+                        const prev = dirtyMap.get(id) || {};
+                        prev[field] = val;
+                        dirtyMap.set(id, prev);
+                        tr.classList.add('changed');
+                        // 重算
+                        const d = collectRowData(tr);
+                        const cells = tr.children;
+                        cells[8].innerText = toFixed2(calcUnitPriceDiscounted(d));
+                        cells[9].innerText = toFixed2(calcAmount(d));
+                        cells[13].innerText = toFixed2(calcAmountDiscounted(d));
+                        cells[14].innerText = toFixed2(calcReceivable(d));
+                        cells[16].innerText = toFixed2(calcBalance(d));
+                    });
+                });
+            }
+
+            function collectRowData(tr){
+                const get = f => { const el = tr.querySelector(`[data-field="${f}"]`); if (!el) return undefined; if (el.type==='number') return Number(el.value||0); return el.value; };
+                return {
+                    unit_price: Number(get('unit_price')||0),
+                    unit_discount_rate: Number(get('unit_discount_rate')||100),
+                    quantity: Number(get('quantity')||0),
+                    order_discount_rate: Number(get('order_discount_rate')||100),
+                    freight: Number(get('freight')||0),
+                    paid_total: Number(get('paid_total')||0)
+                };
+            }
+
+            function getRow(id){
+                if (!useFallback) return grid.getRow(id);
+                const tr = document.querySelector(`#fallbackTable tr[data-id="${id}"]`);
+                if (!tr) return null;
+                return {
+                    update: function(patch){
+                        if (Object.prototype.hasOwnProperty.call(patch,'image_path')){
+                            const td = tr.children[0];
+                            const old = td.querySelector('img');
+                            if (old) old.remove();
+                            if (patch.image_path){
+                                td.insertAdjacentHTML('afterbegin', `<img src="/uploads/thumb_${patch.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${patch.image_path}')">`);
+                            } else {
+                                td.insertAdjacentHTML('afterbegin', '<span class="text-muted">无</span>');
+                            }
+                        }
+                    }
+                };
+            }
+
+            function resetChanges() {
+                dirtyMap.clear();
+                loadProducts(currentPage);
+            }
+
+            function showMessage(message, type = 'info') {
+                const toast = document.getElementById('messageToast');
+                const toastMessage = document.getElementById('toastMessage');
+                toastMessage.textContent = message;
+                toast.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info');
+                switch (type) {
+                    case 'success': toast.classList.add('bg-success', 'text-white'); break;
+                    case 'error': toast.classList.add('bg-danger', 'text-white'); break;
+                    case 'warning': toast.classList.add('bg-warning'); break;
+                    default: toast.classList.add('bg-info', 'text-white');
+                }
+                new bootstrap.Toast(toast).show();
+            }
+
+            function logout() {
+                fetch('/auth/logout', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(() => { window.location.href = '/auth/login'; })
+                    .catch(() => { window.location.href = '/auth/login'; });
+            }
+        </script>
+    </body>
+</html>
+
+

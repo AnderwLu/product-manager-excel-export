@@ -191,3 +191,98 @@ class ProductService:
                 'success': False,
                 'message': f'更新失败: {str(e)}'
             }
+
+    def batch_update_products(self, items):
+        """批量按部分字段更新商品
+        items: List[{'id': int, 'fields': dict}]
+        仅允许更新白名单字段，忽略未知字段。
+        """
+        from models.database import db_manager
+        if not isinstance(items, list) or not items:
+            return { 'success': False, 'message': '无有效更新项' }
+
+        # 允许更新的字段（与前端可编辑列一致）
+        allowed_fields = {
+            'doc_date', 'customer_name', 'product_desc', 'unit',
+            'quantity', 'unit_price', 'unit_discount_rate', 'remark',
+            'freight', 'order_discount_rate', 'paid_total',
+            'settlement_account', 'description'
+        }
+
+        success_count = 0
+        fail_items = []
+
+        for item in items:
+            try:
+                pid = int(item.get('id'))
+                fields = item.get('fields') or {}
+                if not pid or not isinstance(fields, dict) or not fields:
+                    fail_items.append({ 'id': item.get('id'), 'error': '参数无效' })
+                    continue
+
+                # 过滤字段
+                update_fields = {k: v for k, v in fields.items() if k in allowed_fields}
+                if not update_fields:
+                    fail_items.append({ 'id': pid, 'error': '无可更新字段' })
+                    continue
+
+                # 构造SQL
+                set_parts = []
+                params = []
+                for k, v in update_fields.items():
+                    set_parts.append(f"{k}=?")
+                    params.append(v)
+                # 自动更新 update_time
+                set_parts.append("update_time=datetime('now')")
+                sql = f"UPDATE products SET {', '.join(set_parts)} WHERE id=?"
+                params.append(pid)
+
+                affected = db_manager.execute_update(sql, tuple(params))
+                if affected > 0:
+                    success_count += 1
+                else:
+                    fail_items.append({ 'id': pid, 'error': '未找到或未更新' })
+            except Exception as e:
+                fail_items.append({ 'id': item.get('id'), 'error': str(e) })
+
+        return {
+            'success': True,
+            'message': '批量更新完成',
+            'data': {
+                'success_count': success_count,
+                'fail_count': len(fail_items),
+                'fails': fail_items
+            }
+        }
+
+    def update_product_image(self, product_id, image_file=None, delete_image=False):
+        """单独更新商品图片（支持替换或删除）"""
+        try:
+            product = Product.find_by_id(product_id)
+            if not product:
+                return { 'success': False, 'message': '商品不存在' }
+
+            # 删除图片
+            if delete_image:
+                if product.image_path:
+                    self.file_handler.delete_image(product.image_path)
+                product.image_path = None
+                product.save()
+                return { 'success': True, 'message': '图片已删除' }
+
+            # 替换图片
+            if image_file:
+                upload_result = self.file_handler.upload_image(image_file)
+                if not upload_result.get('success'):
+                    return upload_result
+                new_filename = upload_result['filename']
+                # 删除旧图
+                if product.image_path:
+                    self.file_handler.delete_image(product.image_path)
+                product.image_path = new_filename
+                product.save()
+                return { 'success': True, 'message': '图片更新成功', 'filename': new_filename }
+
+            return { 'success': False, 'message': '未提供图片或删除标记' }
+        except Exception as e:
+            return { 'success': False, 'message': f'图片更新失败: {str(e)}' }
