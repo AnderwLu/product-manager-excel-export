@@ -25,11 +25,11 @@
             .pager-bar { position: static; background: #fff; padding-top: .5rem; border-top: 1px solid #eee; }
             .grid-card { padding-bottom: .5rem; }
             /* 降级表格时为关键输入列提供更宽显示 */
-            #fallbackTable td:nth-child(3) input,   /* 客户名称 */
-            #fallbackTable td:nth-child(4) input,   /* 品名规格 */
-            #fallbackTable td:nth-child(5) input,   /* 单位 */
-            #fallbackTable td:nth-child(6) input,   /* 数量 */
-            #fallbackTable td:nth-child(7) input,   /* 单价 */
+            #fallbackTable td:nth-child(2) input,   /* 客户名称 */
+            #fallbackTable td:nth-child(3) input,   /* 品名规格 */
+            #fallbackTable td:nth-child(4) input,   /* 单位 */
+            #fallbackTable td:nth-child(5) input,   /* 数量 */
+            #fallbackTable td:nth-child(6) input,   /* 单价 */
             #fallbackTable td:nth-child(11) input,  /* 备注 */
             #fallbackTable td:nth-child(12) input,  /* 运费 */
             #fallbackTable td:nth-child(16) input,  /* 已收款 */
@@ -141,7 +141,6 @@
                     reactiveData: false,
                     columnDefaults: { headerHozAlign: 'center', vertAlign: 'middle' },
                     columns: [
-                        { title: '图片', field: 'image_path', width: 160, hozAlign: 'center', headerSort: false, formatter: imageFormatter },
                         { title: '单据日期', field: 'doc_date', editor: 'input', editorParams: { elementAttributes: { type: 'date' } }, width: 130 },
                         { title: '客户名称', field: 'customer_name', editor: 'input', width: 240 },
                         { title: '品名规格', field: 'product_desc', editor: 'input', width: 300 },
@@ -151,6 +150,7 @@
                         { title: '单价折扣率(%)', field: 'unit_discount_rate', editor: 'number', width: 130, formatter: decimal2 },
                         { title: '折后单价', field: 'unit_price_discounted', width: 110, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcUnitPriceDiscounted(cell.getRow().getData())); } },
                         { title: '金额', field: 'amount', width: 100, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcAmount(cell.getRow().getData())); } },
+                        { title: '图片', field: 'image_path', width: 160, hozAlign: 'center', headerSort: false, formatter: imageFormatter },
                         { title: '备注', field: 'remark', editor: 'input', width: 220 },
                         { title: '运费', field: 'freight', editor: 'number', width: 120, formatter: decimal2 },
                         { title: '整单折扣率(%)', field: 'order_discount_rate', editor: 'number', width: 140, formatter: decimal2 },
@@ -436,7 +436,6 @@
                     const imgHtml = d.image_path ? `<img src="/uploads/thumb_${d.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${d.image_path}')">` : '<span class="text-muted">无</span>';
                     const unit = d.unit || '';
                     tr.innerHTML = `
-                        <td>${imgHtml}<div class="mt-1"><button class="btn btn-sm btn-outline-primary me-1" onclick="onChangeImage(${d.id})">更换</button><button class="btn btn-sm btn-outline-danger" onclick="onDeleteImage(${d.id})">删除</button></div></td>
                         <td><input class="form-control form-control-sm" type="date" data-field="doc_date" value="${(d.doc_date||'').slice(0,10)}"></td>
                         <td><input class="form-control form-control-sm" data-field="customer_name" value="${escapeHtml(d.customer_name||d.name||'')}"></td>
                         <td><input class="form-control form-control-sm" data-field="product_desc" value="${escapeHtml(d.product_desc||'')}"></td>
@@ -446,6 +445,7 @@
                         <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="unit_discount_rate" value="${Number(d.unit_discount_rate||100)}"></td>
                         <td>${toFixed2(calcUnitPriceDiscounted(d))}</td>
                         <td>${toFixed2(calcAmount(d))}</td>
+                        <td>${imgHtml}<div class="mt-1"><button class="btn btn-sm btn-outline-primary me-1" onclick="onChangeImage(${d.id})">更换</button><button class="btn btn-sm btn-outline-danger" onclick="onDeleteImage(${d.id})">删除</button></div></td>
                         <td><input class="form-control form-control-sm" data-field="remark" value="${escapeHtml(d.remark||'')}"></td>
                         <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="freight" value="${Number(d.freight||0)}"></td>
                         <td><input class="form-control form-control-sm" type="number" step="0.01" data-field="order_discount_rate" value="${Number(d.order_discount_rate||100)}"></td>
