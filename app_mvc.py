@@ -9,6 +9,7 @@ from controllers.product_controller import product_bp
 from controllers.auth_controller import auth_bp
 from models.product import Product
 from models.user import User
+from models.user_pref import UserPreference
 from logging_config import setup_logging
 import os
 
@@ -72,6 +73,7 @@ with app.app_context():
     try:
         Product.create_table()
         User.create_table()
+        UserPreference.create_table()
         # 确保存在admin账号（用户名: admin, 密码: admin, 姓名: admin）
         User.ensure_admin(username='admin', password='admin', real_name='admin')
         logger.info("数据库表初始化完成")

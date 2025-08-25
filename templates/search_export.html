@@ -121,7 +121,7 @@
                             <div id="exportToolbar">
                                 <button class="btn btn-outline-secondary btn-sm" onclick="toggleAllColumns(true)">全选</button>
                                 <button class="btn btn-outline-secondary btn-sm" onclick="toggleAllColumns(false)">全不选</button>
-                                <button class="btn btn-success btn-sm" onclick="exportProducts()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
+                                <button class="btn btn-success btn-sm" onclick="saveColumnsToServer()"><i class="bi bi-save"></i> 保存</button>
                             </div>
                         </div>
 
@@ -683,6 +683,14 @@
                         list.insertBefore(dragging, afterElement);
                     }
                 });
+                // 勾选监听
+                list.addEventListener('change', (e) => {
+                    if (e.target && e.target.classList.contains('col-check')) {
+                        // no-op, wait save
+                    }
+                });
+                // 初始化：从服务端读取配置
+                loadColumnsFromServer();
             }
 
             function getDragAfterElement(container, y) {
@@ -696,6 +704,36 @@
                         return closest;
                     }
                 }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+            async function saveColumnsToServer(){
+                try{
+                    const items = Array.from(document.querySelectorAll('#columnList > li.draggable-item'));
+                    const payload = items.map(li => ({ key: li.getAttribute('data-key'), checked: !!li.querySelector('input.col-check')?.checked }));
+                    const resp = await fetch('/product/columns/save', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ columns: payload }) });
+                    const data = await resp.json();
+                    if (!data.success) throw new Error(data.message || '保存失败');
+                    showMessage('列设置已保存', 'success');
+                }catch(e){ showMessage(e.message || '保存失败', 'error'); }
+            }
+
+            async function loadColumnsFromServer(){
+                try{
+                    const resp = await fetch('/product/columns/load');
+                    const data = await resp.json();
+                    if (!data.success) return;
+                    const cfg = data.data || [];
+                    if (!Array.isArray(cfg) || cfg.length === 0) return;
+                    const list = document.getElementById('columnList');
+                    cfg.forEach(c => {
+                        const li = list.querySelector(`li.draggable-item[data-key="${c.key}"]`);
+                        if (li) list.appendChild(li);
+                    });
+                    cfg.forEach(c => {
+                        const li = document.querySelector(`#columnList li[data-key="${c.key}"]`);
+                        const cb = li ? li.querySelector('input.col-check') : null;
+                        if (cb) cb.checked = !!c.checked;
+                    });
+                }catch(e){ /* 忽略 */ }
             }
             
             function logout() {

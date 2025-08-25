@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify, send_file, session, redirect, url
 from models.product import Product
 from services.export_service import ExportService
 from services.product_service import ProductService
+from models.user_pref import UserPreference
 import logging
 
 # 使用主应用的日志配置
@@ -269,6 +270,36 @@ def export_products():
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'success': False, 'message': f'导出失败: {str(e)}'})
+
+@product_bp.route('/columns/save', methods=['POST'])
+def save_columns_pref():
+    try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
+        data = request.get_json() or {}
+        cfg = data.get('columns')
+        if not isinstance(cfg, list):
+            return jsonify({'success': False, 'message': '参数不正确'})
+        import json
+        val = json.dumps(cfg, ensure_ascii=False)
+        UserPreference.set_pref(session.get('user_id'), 'export_columns', val)
+        return jsonify({'success': True, 'message': '列设置已保存'})
+    except Exception as e:
+        logger.error(f'保存列设置失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'保存失败: {str(e)}'})
+
+@product_bp.route('/columns/load', methods=['GET'])
+def load_columns_pref():
+    try:
+        if not ensure_logged_in():
+            return jsonify({'success': False, 'message': '未登录'}), 401
+        val = UserPreference.get_pref(session.get('user_id'), 'export_columns')
+        import json
+        cfg = json.loads(val) if val else []
+        return jsonify({'success': True, 'data': cfg})
+    except Exception as e:
+        logger.error(f'读取列设置失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'读取失败: {str(e)}'})
 
 @product_bp.route('/batch_update', methods=['POST'])
 def batch_update_products():
