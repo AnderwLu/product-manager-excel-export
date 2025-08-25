@@ -36,6 +36,16 @@
             #fallbackTable td:nth-child(18) input,  /* 结算账户 */
             #fallbackTable td:nth-child(19) input   /* 说明 */
             { min-width: 140px; }
+            /* 统一最小列宽（图片/时间列单独设置），超出自动扩容，容器可横向滚动 */
+            #fallbackTable { table-layout: auto; }
+            #fallbackTable th, #fallbackTable td { min-width: 140px; }
+            #fallbackTable th.col-image_path, #fallbackTable td.col-image_path,
+            #fallbackTable th.col-image, #fallbackTable td.col-image { min-width: 220px; }
+            #fallbackTable th.col-update_time, #fallbackTable td.col-update_time,
+            #fallbackTable th.col-create_time, #fallbackTable td.col-create_time { min-width: 180px; }
+            #fallbackTable td.col-image_path img, #fallbackTable td.col-image img { max-width: 160px; height: auto; display: block; }
+            /* 输入自适应：使用字符宽度，不限制在单元格内 */
+            #fallbackTable input.form-control { width: auto; box-sizing: content-box; }
         </style>
     </head>
     <body class="bg-light">
@@ -58,10 +68,6 @@
         <div class="container py-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="mb-0"><i class="bi bi-pencil-square"></i> 查询与编辑</h3>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-primary" onclick="saveAllChanges()"><i class="bi bi-save"></i> 保存修改</button>
-                    <button class="btn btn-outline-secondary" onclick="resetChanges()"><i class="bi bi-arrow-counterclockwise"></i> 取消本页修改</button>
-                </div>
             </div>
 
             <div class="alert alert-info py-2">
@@ -92,6 +98,9 @@
                 <div class="col-md-12">
                     <button class="btn btn-primary me-2" onclick="searchProducts()"><i class="bi bi-search"></i> 查询</button>
                     <button class="btn btn-outline-secondary me-2" onclick="resetSearch()"><i class="bi bi-x-lg"></i> 重置</button>
+                    <button class="btn btn-success" onclick="exportCurrent()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
+                    <button class="btn btn-primary" onclick="saveAllChanges()"><i class="bi bi-save"></i> 保存修改</button>
+                    <button class="btn btn-outline-secondary" onclick="resetChanges()"><i class="bi bi-arrow-counterclockwise"></i> 取消本页修改</button>
                 </div>
             </div>
 
@@ -121,6 +130,48 @@
             let grid = null;
             let useFallback = false; // 当 Tabulator 不可用时启用降级渲染
             const allowedFields = new Set(['doc_date','customer_name','product_desc','unit','quantity','unit_price','unit_discount_rate','remark','freight','order_discount_rate','paid_total','settlement_account','description']);
+
+            // 基础列定义（用于首访或服务端未返回时的默认渲染）
+            const BASE_COLUMNS = [
+                { key: 'doc_date', title: '单据日期' },
+                { key: 'customer_name', title: '客户名称' },
+                { key: 'product_desc', title: '品名规格' },
+                { key: 'unit', title: '单位' },
+                { key: 'quantity', title: '数量' },
+                { key: 'unit_price', title: '单价' },
+                { key: 'unit_discount_rate', title: '单价折扣率(%)' },
+                { key: 'unit_price_discounted', title: '折后单价' },
+                { key: 'amount', title: '金额' },
+                { key: 'image_path', title: '图片' },
+                { key: 'remark', title: '备注' },
+                { key: 'freight', title: '运费' },
+                { key: 'order_discount_rate', title: '整单折扣率(%)' },
+                { key: 'amount_discounted', title: '折后金额' },
+                { key: 'receivable', title: '应收款' },
+                { key: 'paid_total', title: '已收款' },
+                { key: 'balance', title: '尾款' },
+                { key: 'settlement_account', title: '结算账户' },
+                { key: 'description', title: '说明' },
+                { key: 'salesperson', title: '营业员' },
+                { key: 'update_time', title: '修改时间' },
+                { key: 'create_time', title: '创建时间' }
+            ];
+
+            // 读取当前激活列（优先使用本地存储/服务端返回），否则回落到全量默认列
+            function getActiveColumns(){
+                try {
+                    const stored = JSON.parse(localStorage.getItem('edit_columns') || 'null');
+                    if (Array.isArray(stored) && stored.length) return stored;
+                } catch(e) {}
+                return BASE_COLUMNS.map(c => ({ ...c, hidden: false }));
+            }
+
+            // 将导出页的键名映射到查询编辑内部键名
+            function normalizeKey(k){
+                if (k === 'name') return 'product_desc';
+                if (k === 'image') return 'image_path';
+                return k;
+            }
 
             document.addEventListener('DOMContentLoaded', async function () {
                 await syncColumnsFromServer();
@@ -419,25 +470,26 @@
             // ========== 降级渲染（无 Tabulator 时） ==========
             function initFallbackGrid(){
                 const holder = document.getElementById('grid');
-                const cols = getActiveColumns().filter(c => !c.hidden);
-                const head = cols.map(c => `<th>${c.title}</th>`).join('');
+                const cols = (typeof getActiveColumns === 'function' ? getActiveColumns() : []).filter(c => !c.hidden);
+                const head = cols.map(c => `<th class="col-${c.key}">${c.title}</th>`).join('');
                 holder.innerHTML = `<div class="table-responsive"><table class="table table-striped align-middle table-nowrap" id="fallbackTable"><thead><tr>${head}</tr></thead><tbody></tbody></table></div>`;
             }
 
             function gridReplaceData(rows){
                 if (!useFallback) { grid.replaceData(rows); return; }
-                const cols = getActiveColumns().filter(c => !c.hidden);
+                const cols = (typeof getActiveColumns === 'function' ? getActiveColumns() : []).filter(c => !c.hidden);
                 const tbody = document.querySelector('#fallbackTable tbody');
                 tbody.innerHTML = '';
                 rows.forEach(d => {
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-id', d.id);
                     const unit = d.unit || '';
-                    const imgHtml = d.image_path ? `<img src="/uploads/thumb_${d.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${d.image_path}')">` : '<span class="text-muted">无</span>';
+                    const imgHtml = d.image_path ? `<img src="/uploads/thumb_${d.image_path}" style="max-height:80px;max-width:160px;width:auto;height:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${d.image_path}')">` : '<span class="text-muted">无</span>';
                     const cellMap = {
                         doc_date: `<input class=\"form-control form-control-sm\" type=\"date\" data-field=\"doc_date\" value=\"${(d.doc_date||'').slice(0,10)}\">`,
                         customer_name: `<input class=\"form-control form-control-sm\" data-field=\"customer_name\" value=\"${escapeHtml(d.customer_name||d.name||'')}\">`,
-                        product_desc: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||'')}\">`,
+                        product_desc: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||d.name||'')}\">`,
+                        name: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||d.name||'')}\">`,
                         unit: `<input class=\"form-control form-control-sm\" data-field=\"unit\" value=\"${escapeHtml(unit)}\">`,
                         quantity: `<input class=\"form-control form-control-sm\" type=\"number\" data-field=\"quantity\" value=\"${Number(d.quantity||0)}\">`,
                         unit_price: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"unit_price\" value=\"${Number(d.unit_price||0)}\">`,
@@ -445,6 +497,7 @@
                         unit_price_discounted: toFixed2(calcUnitPriceDiscounted(d)),
                         amount: toFixed2(calcAmount(d)),
                         image_path: `${imgHtml}<div class=\"mt-1\"><button class=\"btn btn-sm btn-outline-primary me-1\" onclick=\"onChangeImage(${d.id})\">更换</button><button class=\"btn btn-sm btn-outline-danger\" onclick=\"onDeleteImage(${d.id})\">删除</button></div>`,
+                        image: `${imgHtml}<div class=\"mt-1\"><button class=\"btn btn-sm btn-outline-primary me-1\" onclick=\"onChangeImage(${d.id})\">更换</button><button class=\"btn btn-sm btn-outline-danger\" onclick=\"onDeleteImage(${d.id})\">删除</button></div>`,
                         remark: `<input class=\"form-control form-control-sm\" data-field=\"remark\" value=\"${escapeHtml(d.remark||'')}\">`,
                         freight: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"freight\" value=\"${Number(d.freight||0)}\">`,
                         order_discount_rate: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"order_discount_rate\" value=\"${Number(d.order_discount_rate||100)}\">`,
@@ -458,7 +511,7 @@
                         update_time: (d.update_time||''),
                         create_time: (d.create_time||'')
                     };
-                    tr.innerHTML = cols.map(c => `<td>${cellMap[c.key]||''}</td>`).join('');
+                    tr.innerHTML = cols.map(c => `<td class=\"col-${c.key}\">${cellMap[c.key]||''}</td>`).join('');
                     tbody.appendChild(tr);
                 });
                 tbody.querySelectorAll('input[data-field]').forEach(inp => {
@@ -482,7 +535,8 @@
                     const resp = await fetch('/product/columns/load');
                     const data = await resp.json();
                     if (data && data.success && Array.isArray(data.data) && data.data.length){
-                        localStorage.setItem('edit_columns', JSON.stringify(data.data.map(c => ({ key:c.key, title:(DEFAULT_COLUMNS.find(d=>d.key===c.key)||{}).title || c.key, hidden: !c.checked }))));
+                        const normalized = data.data.map(c => ({ key: normalizeKey(c.key), checked: !!c.checked }));
+                        localStorage.setItem('edit_columns', JSON.stringify(normalized.map(c => ({ key:c.key, title:(BASE_COLUMNS.find(d=>d.key===c.key)||{}).title || c.key, hidden: !c.checked }))));
                     } else {
                         localStorage.removeItem('edit_columns');
                     }
@@ -545,6 +599,55 @@
                     .then(r => r.json())
                     .then(() => { window.location.href = '/auth/login'; })
                     .catch(() => { window.location.href = '/auth/login'; });
+            }
+
+            // 导出：使用当前查询条件 + 用户列配置，调用后端现有导出接口
+            function exportCurrent(){
+                // 列顺序与勾选：优先本地（已是服务端保存结果）
+                let cfg = [];
+                try { cfg = JSON.parse(localStorage.getItem('edit_columns') || '[]'); } catch(e) { cfg = []; }
+                if (!Array.isArray(cfg) || cfg.length === 0) { cfg = BASE_COLUMNS.map(c => ({ key: c.key, hidden: false })); }
+                // 兼容两种结构：{checked} 或 {hidden}
+                const selectedInternalKeys = cfg
+                    .filter(c => c && (c.checked === true || c.checked === undefined && c.hidden !== true))
+                    .map(c => c.key);
+                if (selectedInternalKeys.length === 0) { showMessage('请至少选择一列在列设置中启用', 'error'); return; }
+                // 内部键映射到导出接口键
+                const toExportKey = (k) => (k === 'product_desc' ? 'name' : (k === 'image_path' ? 'image' : k));
+                const selected = selectedInternalKeys.map(toExportKey);
+
+                const filters = {
+                    search: document.getElementById('searchInput').value || undefined,
+                    product_desc: document.getElementById('searchProductDesc').value || undefined,
+                    salesperson: document.getElementById('searchSalesperson').value || undefined,
+                    date_start: document.getElementById('dateStart').value || undefined,
+                    date_end: document.getElementById('dateEnd').value || undefined
+                };
+
+                fetch('/product/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ columns: selected, filters })
+                })
+                    .then(response => {
+                        if (!response.ok) throw new Error('导出失败');
+                        const cd = response.headers.get('Content-Disposition');
+                        let filename = '';
+                        if (cd) {
+                            const m = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                            if (m && m[1]) filename = m[1].replace(/['"]/g, '');
+                        }
+                        if (!filename) filename = `products_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.xlsx`;
+                        return response.blob().then(blob => ({ blob, filename }));
+                    })
+                    .then(({ blob, filename }) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+                        URL.revokeObjectURL(url); a.remove();
+                        showMessage('导出成功', 'success');
+                    })
+                    .catch(err => showMessage('导出失败: ' + (err.message || err), 'error'));
             }
         </script>
     </body>
