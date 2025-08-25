@@ -46,6 +46,9 @@
             #fallbackTable td.col-image_path img, #fallbackTable td.col-image img { max-width: 160px; height: auto; display: block; }
             /* 输入自适应：使用字符宽度，不限制在单元格内 */
             #fallbackTable input.form-control { width: auto; box-sizing: content-box; }
+            /* 图片弹框样式 */
+            .image-modal-img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+            .image-modal-body { text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; }
         </style>
     </head>
     <body class="bg-light">
@@ -71,7 +74,7 @@
             </div>
 
             <div class="alert alert-info py-2">
-                说明：查询结果单元格可直接编辑。修改将以浅蓝色标记，点击“保存修改”一次性提交。
+                说明：查询结果单元格可直接编辑，修改将自动保存。
             </div>
 
             <div class="row g-3 align-items-end mb-3">
@@ -99,8 +102,6 @@
                     <button class="btn btn-primary me-2" onclick="searchProducts()"><i class="bi bi-search"></i> 查询</button>
                     <button class="btn btn-outline-secondary me-2" onclick="resetSearch()"><i class="bi bi-x-lg"></i> 重置</button>
                     <button class="btn btn-success" onclick="exportCurrent()"><i class="bi bi-file-earmark-excel"></i> 导出</button>
-                    <button class="btn btn-primary" onclick="saveAllChanges()"><i class="bi bi-save"></i> 保存修改</button>
-                    <button class="btn btn-outline-secondary" onclick="resetChanges()"><i class="bi bi-arrow-counterclockwise"></i> 取消本页修改</button>
                 </div>
             </div>
 
@@ -108,6 +109,27 @@
                 <div id="grid"></div>
                 <div class="clearfix"></div>
                 <nav aria-label="分页" class="pager-bar"><ul class="pagination justify-content-end m-0" id="pagination"></ul></nav>
+            </div>
+        </div>
+
+        <!-- 图片查看/编辑弹框 -->
+        <div class="modal fade" id="imageViewerModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">图片预览</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body image-modal-body">
+                        <img id="imageModalPreview" class="image-modal-img" alt="预览" />
+                        <div id="imageModalEmpty" class="text-muted d-none">当前无图片</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="btnModalAddOrChange" type="button" class="btn btn-primary">添加/更换</button>
+                        <button id="btnModalDelete" type="button" class="btn btn-outline-danger">删除</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -130,6 +152,9 @@
             let grid = null;
             let useFallback = false; // 当 Tabulator 不可用时启用降级渲染
             const allowedFields = new Set(['doc_date','customer_name','product_desc','unit','quantity','unit_price','unit_discount_rate','remark','freight','order_discount_rate','paid_total','settlement_account','description']);
+            let rowCache = new Map(); // id -> latest row data
+            let imageModal = null;
+            let currentImageRowId = null;
 
             // 基础列定义（用于首访或服务端未返回时的默认渲染）
             const BASE_COLUMNS = [
@@ -183,6 +208,19 @@
                     initGrid();
                     loadProducts();
                 }
+                // 初始化图片弹框
+                const modalEl = document.getElementById('imageViewerModal');
+                if (modalEl) {
+                    imageModal = new bootstrap.Modal(modalEl);
+                    document.getElementById('btnModalAddOrChange')?.addEventListener('click', () => {
+                        if (currentImageRowId == null) return;
+                        triggerImagePick(currentImageRowId);
+                    });
+                    document.getElementById('btnModalDelete')?.addEventListener('click', () => {
+                        if (currentImageRowId == null) return;
+                        deleteImageFromModal(currentImageRowId);
+                    });
+                }
             });
 
             function initGrid() {
@@ -202,7 +240,7 @@
                         { title: '单价折扣率(%)', field: 'unit_discount_rate', editor: 'number', width: 130, formatter: decimal2 },
                         { title: '折后单价', field: 'unit_price_discounted', width: 110, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcUnitPriceDiscounted(cell.getRow().getData())); } },
                         { title: '金额', field: 'amount', width: 100, hozAlign: 'right', formatter: function(cell){ return toFixed2(calcAmount(cell.getRow().getData())); } },
-                        { title: '图片', field: 'image_path', width: 160, hozAlign: 'center', headerSort: false, formatter: imageFormatter },
+                        { title: '图片', field: 'image_path', width: 160, hozAlign: 'center', headerSort: false, formatter: imageFormatter, cellClick: function(e, cell){ const d = cell.getRow().getData(); if (d && d.id != null) openImageModalById(d.id); } },
                         { title: '备注', field: 'remark', editor: 'input', width: 220 },
                         { title: '运费', field: 'freight', editor: 'number', width: 120, formatter: decimal2 },
                         { title: '整单折扣率(%)', field: 'order_discount_rate', editor: 'number', width: 140, formatter: decimal2 },
@@ -223,26 +261,92 @@
                         const id = row.getIndex();
                         let val = cell.getValue();
                         if (typeof val === 'string' && val.trim() === '') val = null;
-                        const prev = dirtyMap.get(id) || {};
-                        prev[field] = val;
-                        dirtyMap.set(id, prev);
-                        row.getElement().classList.add('changed');
-                        row.reformat();
+                        const oldVal = (typeof cell.getOldValue === 'function') ? cell.getOldValue() : undefined;
+                        // 实时保存
+                        savePartialUpdate(id, { [field]: val })
+                          .then(() => {
+                              // 缓存同步与局部刷新
+                              const d = rowCache.get(id) || {};
+                              d[field] = val;
+                              rowCache.set(id, d);
+                              row.getElement().classList.add('changed');
+                              row.reformat();
+                          })
+                          .catch(err => {
+                              showMessage('保存失败: ' + (err.message || err), 'error');
+                              // 回滚显示
+                              if (oldVal !== undefined) {
+                                  const patch = {}; patch[field] = oldVal;
+                                  row.update(patch);
+                              }
+                          });
                     }
+                });
+            }
+
+            function savePartialUpdate(id, fields){
+                return fetch('/product/batch_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: [{ id, fields }] })
+                }).then(r => r.json()).then(d => {
+                    if (!d || d.success !== true) { throw new Error(d && d.message || '保存失败'); }
+                    return d;
                 });
             }
 
             function imageFormatter(cell){
                 const data = cell.getRow().getData();
                 const has = !!data.image_path;
-                const imgHtml = has ? `<img src="/uploads/thumb_${data.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${data.image_path}')">` : '<span class="text-muted">无</span>';
-                return `${imgHtml}<div class="mt-1">
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="onChangeImage(${data.id})">更换</button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="onDeleteImage(${data.id})">删除</button>
-                </div>`;
+                const imgHtml = has
+                    ? `<img src="/uploads/thumb_${data.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="openImageModalById(${data.id})">`
+                    : `<button class="btn btn-sm btn-outline-primary" onclick="openImageModalById(${data.id})">添加图片</button>`;
+                return `${imgHtml}`;
             }
 
-            function onChangeImage(id){
+            function openImageModalById(id){
+                currentImageRowId = id;
+                const data = getRowData(id);
+                const imgEl = document.getElementById('imageModalPreview');
+                const emptyEl = document.getElementById('imageModalEmpty');
+                if (!imgEl || !emptyEl || !imageModal) return;
+                if (data && data.image_path) {
+                    imgEl.src = `/uploads/${data.image_path}`;
+                    imgEl.classList.remove('d-none');
+                    emptyEl.classList.add('d-none');
+                    document.getElementById('btnModalAddOrChange').textContent = '更换图片';
+                    document.getElementById('btnModalDelete').classList.remove('d-none');
+                } else {
+                    imgEl.src = '';
+                    imgEl.classList.add('d-none');
+                    emptyEl.classList.remove('d-none');
+                    document.getElementById('btnModalAddOrChange').textContent = '添加图片';
+                    document.getElementById('btnModalDelete').classList.add('d-none');
+                }
+                imageModal.show();
+            }
+
+            function getRowData(id){
+                if (!useFallback) {
+                    const row = grid.getRow(id);
+                    return row ? row.getData() : rowCache.get(id);
+                }
+                return rowCache.get(id);
+            }
+
+            function setRowImagePath(id, filename){
+                const row = getRow(id);
+                if (row) { row.update({ image_path: filename || null }); }
+                const d = rowCache.get(id) || {};
+                d.image_path = filename || null;
+                rowCache.set(id, d);
+                if (currentImageRowId === id) {
+                    // 同步弹框UI
+                    openImageModalById(id);
+                }
+            }
+
+            function triggerImagePick(id){
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = 'image/*';
@@ -257,15 +361,14 @@
                       .then(d => {
                           if (!d.success) return showMessage(d.message || '图片更新失败', 'error');
                           showMessage('图片更新成功', 'success');
-                          const row = grid.getRow(id);
-                          if (row) { row.update({ image_path: d.filename || null }); }
+                          setRowImagePath(id, d.filename || null);
                       })
                       .catch(err => showMessage('图片更新失败: ' + err.message, 'error'));
                 };
                 input.click();
             }
 
-            function onDeleteImage(id){
+            function deleteImageFromModal(id){
                 if (!confirm('确定删除该行图片？')) return;
                 const fd = new FormData();
                 fd.append('id', String(id));
@@ -275,11 +378,14 @@
                   .then(d => {
                       if (!d.success) return showMessage(d.message || '删除失败', 'error');
                       showMessage('图片已删除', 'success');
-                      const row = grid.getRow(id);
-                      if (row) { row.update({ image_path: null }); }
+                      setRowImagePath(id, null);
                   })
                   .catch(err => showMessage('删除失败: ' + err.message, 'error'));
             }
+
+            function onChangeImage(id){ triggerImagePick(id); }
+
+            function onDeleteImage(id){ deleteImageFromModal(id); }
 
             function loadProducts(page = 1) {
                 const q = new URLSearchParams({ page: String(page), per_page: '10' });
@@ -298,6 +404,8 @@
                     .then(d => {
                         if (!d.success) return showMessage(d.message, 'error');
                         const products = (d.data.products || []).map(normalizeRow);
+                        // 更新缓存
+                        rowCache = new Map(products.map(p => [p.id, { ...p }]));
                         gridReplaceData(products);
                         displayPagination(d.data.page, d.data.total_pages);
                         currentPage = d.data.page; totalPages = d.data.total_pages;
@@ -480,24 +588,26 @@
                 const cols = (typeof getActiveColumns === 'function' ? getActiveColumns() : []).filter(c => !c.hidden);
                 const tbody = document.querySelector('#fallbackTable tbody');
                 tbody.innerHTML = '';
+                // 同步缓存
+                rowCache = new Map(rows.map(x => [x.id, { ...x }]));
                 rows.forEach(d => {
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-id', d.id);
                     const unit = d.unit || '';
-                    const imgHtml = d.image_path ? `<img src="/uploads/thumb_${d.image_path}" style="max-height:80px;max-width:160px;width:auto;height:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${d.image_path}')">` : '<span class="text-muted">无</span>';
+                    const imgHtml = d.image_path ? `<img src="/uploads/thumb_${d.image_path}" style="max-height:80px;max-width:160px;width:auto;height:auto;border-radius:4px;cursor:pointer" onclick="openImageModalById(${d.id})">` : `<button class=\"btn btn-sm btn-outline-primary\" onclick=\"openImageModalById(${d.id})\">添加图片</button>`;
                     const cellMap = {
-                        doc_date: `<input class=\"form-control form-control-sm\" type=\"date\" data-field=\"doc_date\" value=\"${(d.doc_date||'').slice(0,10)}\">`,
-                        customer_name: `<input class=\"form-control form-control-sm\" data-field=\"customer_name\" value=\"${escapeHtml(d.customer_name||d.name||'')}\">`,
-                        product_desc: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||d.name||'')}\">`,
-                        name: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||d.name||'')}\">`,
-                        unit: `<input class=\"form-control form-control-sm\" data-field=\"unit\" value=\"${escapeHtml(unit)}\">`,
-                        quantity: `<input class=\"form-control form-control-sm\" type=\"number\" data-field=\"quantity\" value=\"${Number(d.quantity||0)}\">`,
-                        unit_price: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"unit_price\" value=\"${Number(d.unit_price||0)}\">`,
-                        unit_discount_rate: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"unit_discount_rate\" value=\"${Number(d.unit_discount_rate||100)}\">`,
+                        doc_date: `<input class=\"form-control form-control-sm\" type=\"date\" data-field=\"doc_date\" value=\"${(d.doc_date||'').slice(0,10)}\" data-prev=\"${(d.doc_date||'').slice(0,10)}\">`,
+                        customer_name: `<input class=\"form-control form-control-sm\" data-field=\"customer_name\" value=\"${escapeHtml(d.customer_name||d.name||'')}\" data-prev=\"${escapeHtml(d.customer_name||d.name||'')}\">`,
+                        product_desc: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||d.name||'')}\" data-prev=\"${escapeHtml(d.product_desc||d.name||'')}\">`,
+                        name: `<input class=\"form-control form-control-sm\" data-field=\"product_desc\" value=\"${escapeHtml(d.product_desc||d.name||'')}\" data-prev=\"${escapeHtml(d.product_desc||d.name||'')}\">`,
+                        unit: `<input class=\"form-control form-control-sm\" data-field=\"unit\" value=\"${escapeHtml(unit)}\" data-prev=\"${escapeHtml(unit)}\">`,
+                        quantity: `<input class=\"form-control form-control-sm\" type=\"number\" data-field=\"quantity\" value=\"${Number(d.quantity||0)}\" data-prev=\"${Number(d.quantity||0)}\">`,
+                        unit_price: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"unit_price\" value=\"${Number(d.unit_price||0)}\" data-prev=\"${Number(d.unit_price||0)}\">`,
+                        unit_discount_rate: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"unit_discount_rate\" value=\"${Number(d.unit_discount_rate||100)}\" data-prev=\"${Number(d.unit_discount_rate||100)}\">`,
                         unit_price_discounted: toFixed2(calcUnitPriceDiscounted(d)),
                         amount: toFixed2(calcAmount(d)),
-                        image_path: `${imgHtml}<div class=\"mt-1\"><button class=\"btn btn-sm btn-outline-primary me-1\" onclick=\"onChangeImage(${d.id})\">更换</button><button class=\"btn btn-sm btn-outline-danger\" onclick=\"onDeleteImage(${d.id})\">删除</button></div>`,
-                        image: `${imgHtml}<div class=\"mt-1\"><button class=\"btn btn-sm btn-outline-primary me-1\" onclick=\"onChangeImage(${d.id})\">更换</button><button class=\"btn btn-sm btn-outline-danger\" onclick=\"onDeleteImage(${d.id})\">删除</button></div>`,
+                        image_path: `${imgHtml}`,
+                        image: `${imgHtml}`,
                         remark: `<input class=\"form-control form-control-sm\" data-field=\"remark\" value=\"${escapeHtml(d.remark||'')}\">`,
                         freight: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"freight\" value=\"${Number(d.freight||0)}\">`,
                         order_discount_rate: `<input class=\"form-control form-control-sm\" type=\"number\" step=\"0.01\" data-field=\"order_discount_rate\" value=\"${Number(d.order_discount_rate||100)}\">`,
@@ -522,10 +632,24 @@
                         let val = e.target.value;
                         if (e.target.type === 'number') val = (val === '' ? null : Number(val));
                         if (e.target.type === 'date') val = val || null;
-                        const prev = dirtyMap.get(id) || {};
-                        prev[field] = val;
-                        dirtyMap.set(id, prev);
-                        tr.classList.add('changed');
+                        const prevVal = e.target.getAttribute('data-prev');
+                        e.target.disabled = true;
+                        savePartialUpdate(id, { [field]: val })
+                          .then(() => {
+                              const cache = rowCache.get(id) || {};
+                              cache[field] = val;
+                              rowCache.set(id, cache);
+                              tr.classList.add('changed');
+                              e.target.setAttribute('data-prev', (e.target.value || ''));
+                          })
+                          .catch(err => {
+                              showMessage('保存失败: ' + (err.message || err), 'error');
+                              // 回滚输入框值
+                              if (prevVal !== null) {
+                                  e.target.value = prevVal;
+                              }
+                          })
+                          .finally(() => { e.target.disabled = false; });
                     });
                 });
             }
@@ -566,9 +690,11 @@
                             const old = td.querySelector('img');
                             if (old) old.remove();
                             if (patch.image_path){
-                                td.insertAdjacentHTML('afterbegin', `<img src="/uploads/thumb_${patch.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="viewImage('/uploads/${patch.image_path}')">`);
+                                td.innerHTML = '';
+                                td.insertAdjacentHTML('afterbegin', `<img src="/uploads/thumb_${patch.image_path}" style="height:48px;width:auto;border-radius:4px;cursor:pointer" onclick="openImageModalById(${id})">`);
                             } else {
-                                td.insertAdjacentHTML('afterbegin', '<span class="text-muted">无</span>');
+                                td.innerHTML = '';
+                                td.insertAdjacentHTML('afterbegin', '<button class="btn btn-sm btn-outline-primary" onclick="openImageModalById('+id+')">添加图片</button>');
                             }
                         }
                     }
