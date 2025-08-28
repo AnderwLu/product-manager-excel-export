@@ -4,8 +4,9 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>录入 - 商品信息管理</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet" />
+            <link href="/static/lib/bootstrap5.1.3/bootstrap.min.css" rel="stylesheet" />
+            <link href="/static/lib/bootstrap-icons/bootstrap-icons.min.css" rel="stylesheet" />
+            <link href="/static/lib/tabulator/tabulator.min.css" rel="stylesheet" />
         <style>
             body { padding-top: 64px; }
             .product-image { max-width: 70px; max-height: 70px; object-fit: cover; cursor: pointer; }
@@ -22,6 +23,21 @@
             .navbar .nav-link:hover { color: #fff; }
             /* 列表不换行，靠外层 .table-responsive 横向滚动 */
             .table-nowrap th, .table-nowrap td { white-space: nowrap; }
+            /* 可编辑行高亮，与 search_edit 保持一致 */
+            .changed { background-color: #e7f5ff !important; }
+            /* 统一缩略图样式（与 search_edit 一致） */
+            .thumb-fixed { width: 80px; height: 60px; object-fit: contain; border-radius: 4px; cursor: pointer; background-color: #fff; display: inline-block; }
+            .tabulator-cell .btn { padding: .1rem .4rem; font-size: .75rem; }
+            /* 图片弹框样式（与 search_edit 保持一致） */
+            .image-modal-img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+            .image-modal-body { text-align: center; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+            /* 表单：同一行显示，标签右对齐，输入统一宽度 */
+            @media (min-width: 768px){
+                #productForm .row.g-3 > .col-md-3 { display: flex; align-items: center; gap: .5rem; }
+                #productForm .row.g-3 > .col-md-3 > label.form-label { width: 6.5rem; text-align: right; margin-bottom: 0; white-space: nowrap; }
+                #productForm .row.g-3 > .col-md-3 > .form-control { flex: 1 1 auto; }
+                #productForm .row.g-3 > .col-md-3 > .invalid-feedback { margin-left: 6.5rem; }
+            }
         </style>
     </head>
     <body class="bg-light">
@@ -150,24 +166,10 @@
                 <div class="col-12">
                     <div class="bg-white rounded shadow-sm p-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 class="mb-0"><i class="bi bi-list"></i> 今日录入（倒序）</h5>
+                            <h5 class="mb-0"><i class="bi bi-list"></i> 今日录入（可编辑）</h5>
                             <button class="btn btn-outline-secondary btn-sm" onclick="refreshToday()"><i class="bi bi-arrow-clockwise"></i> 刷新</button>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-striped align-middle table-nowrap">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>单据日期</th><th>客户名称</th><th>品名规格</th><th>单位</th>
-                                        <th>数量</th><th>单价</th><th>单价折扣率(%)</th><th>折后单价</th>
-                                        <th>金额</th><th>图片</th><th>备注</th><th>运费</th>
-                                        <th>整单折扣率(%)</th><th>折后金额</th><th>应收款</th>
-                                        <th>已收款</th><th>尾款</th><th>结算账户</th>
-                                        <th>说明</th><th>营业员</th><th>修改时间</th><th>创建时间</th><th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="todayTableBody"></tbody>
-                            </table>
-                        </div>
+                        <div id="todayGrid"></div>
                     </div>
                 </div>
             </div>
@@ -239,6 +241,27 @@
             </div>
         </div>
 
+        <!-- 图片查看/编辑弹框（与 search_edit 一致） -->
+        <div class="modal fade" id="imageViewerModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">图片预览</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body image-modal-body">
+                        <img id="imageModalPreview" class="image-modal-img" alt="预览" />
+                        <div id="imageModalEmpty" class="text-muted d-none">当前无图片</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="btnModalAddOrChange" type="button" class="btn btn-primary">添加/更换</button>
+                        <button id="btnModalDelete" type="button" class="btn btn-outline-danger">删除</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="toast-container position-fixed bottom-0 end-0 p-3">
             <div id="messageToast" class="toast" role="alert">
                 <div class="toast-header">
@@ -249,8 +272,15 @@
             </div>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="/static/lib/bootstrap5.1.3/bootstrap.bundle.min.js"></script>
+        <script src="/static/lib/tabulator/tabulator.min.js"></script>
         <script>
+            let todayGrid = null;
+            let rowCache = new Map();
+            const allowedFields = new Set(['doc_date','customer_name','product_desc','unit','quantity','unit_price','unit_discount_rate','remark','freight','order_discount_rate','paid_total','settlement_account','description']);
+            let imageModal = null;
+            let currentImageRowId = null;
+
             document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('productForm').addEventListener('submit', function (e) {
                     e.preventDefault();
@@ -273,8 +303,235 @@
                 ['quantity','price','unit_discount_rate','order_discount_rate','freight','paid_total']
                     .forEach(id => document.getElementById(id)?.addEventListener('input', recalc));
                 recalc();
+
+                if (typeof Tabulator !== 'undefined') { initTodayGrid(); }
+
+                // 初始化图片弹框
+                const modalEl = document.getElementById('imageViewerModal');
+                if (modalEl) {
+                    imageModal = new bootstrap.Modal(modalEl);
+                    document.getElementById('btnModalAddOrChange')?.addEventListener('click', () => {
+                        if (currentImageRowId == null) return;
+                        triggerImagePick(currentImageRowId);
+                    });
+                    document.getElementById('btnModalDelete')?.addEventListener('click', () => {
+                        if (currentImageRowId == null) return;
+                        deleteImageFromModal(currentImageRowId);
+                    });
+                }
+
                 refreshToday();
             });
+
+            function initTodayGrid(){
+                todayGrid = new Tabulator('#todayGrid', {
+                    data: [],
+                    layout: 'fitData',
+                    index: 'id',
+                    reactiveData: false,
+                    columnDefaults: { headerHozAlign: 'center', vertAlign: 'middle' },
+                    columns: [
+                        { title: '单据日期', field: 'doc_date', editor: 'input', editorParams: { elementAttributes: { type: 'date' } } },
+                        { title: '客户名称', field: 'customer_name', editor: 'input' },
+                        { title: '品名规格', field: 'product_desc', editor: 'input' },
+                        { title: '单位', field: 'unit', editor: 'input' },
+                        { title: '数量', field: 'quantity', editor: 'number' },
+                        { title: '单价', field: 'unit_price', editor: 'number', formatter: decimal2 },
+                        { title: '单价折扣率(%)', field: 'unit_discount_rate', editor: 'number', formatter: decimal2 },
+                        { title: '折后单价', field: 'unit_price_discounted', hozAlign: 'right', formatter: function(cell){ return toFixed2(calcUnitPriceDiscounted(cell.getRow().getData())); } },
+                        { title: '金额', field: 'amount', hozAlign: 'right', formatter: function(cell){ return toFixed2(calcAmount(cell.getRow().getData())); } },
+                        { title: '图片', field: 'image_path', hozAlign: 'center', headerSort: false, formatter: imageFormatter, cellClick: function(e, cell){ const d = cell.getRow().getData(); if (d && d.id != null) openImageModalById(d.id); } },
+                        { title: '备注', field: 'remark', editor: 'input' },
+                        { title: '运费', field: 'freight', editor: 'number', formatter: decimal2 },
+                        { title: '整单折扣率(%)', field: 'order_discount_rate', editor: 'number', formatter: decimal2 },
+                        { title: '折后金额', field: 'amount_discounted', hozAlign: 'right', formatter: function(cell){ return toFixed2(calcAmountDiscounted(cell.getRow().getData())); } },
+                        { title: '应收款', field: 'receivable', hozAlign: 'right', formatter: function(cell){ return toFixed2(calcReceivable(cell.getRow().getData())); } },
+                        { title: '已收款', field: 'paid_total', editor: 'number', formatter: decimal2 },
+                        { title: '尾款', field: 'balance', hozAlign: 'right', formatter: function(cell){ return toFixed2(calcBalance(cell.getRow().getData())); } },
+                        { title: '结算账户', field: 'settlement_account', editor: 'input' },
+                        { title: '说明', field: 'description', editor: 'input' },
+                        { title: '营业员', field: 'salesperson' },
+                        { title: '修改时间', field: 'update_time' },
+                        { title: '创建时间', field: 'create_time' },
+                        { title: '操作', field: 'actions', headerSort: false, hozAlign: 'center', formatter: function(cell){
+                            const d = cell.getRow().getData();
+                            const id = d && d.id != null ? d.id : '';
+                            const name = (d && (d.customer_name || d.name)) || '';
+                            return `<button class="btn btn-outline-danger btn-sm" onclick="deleteProduct(${id}, '${(name||'').replace(/'/g, "\\'")}')"><i class='bi bi-trash'></i></button>`;
+                        }},
+                    ],
+                    cellEdited: function(cell){
+                        const field = cell.getField();
+                        if (!allowedFields.has(field)) return;
+                        const row = cell.getRow();
+                        const id = row.getIndex();
+                        let val = cell.getValue();
+                        if (typeof val === 'string' && val.trim() === '') val = null;
+                        const oldVal = (typeof cell.getOldValue === 'function') ? cell.getOldValue() : undefined;
+                        // 先本地刷新计算列（不等待网络）
+                        const base = rowCache.get(id) || {};
+                        base[field] = val;
+                        rowCache.set(id, base);
+                        try { row.reformat(); } catch(e) {}
+                        row.getElement().classList.add('changed');
+                        // 再异步保存
+                        savePartialUpdate(id, { [field]: val })
+                          .catch(err => {
+                              showMessage('保存失败: ' + (err.message || err), 'error');
+                              // 回滚显示与缓存
+                              if (oldVal !== undefined) {
+                                  const patch = {}; patch[field] = oldVal;
+                                  row.update(patch);
+                                  const cached = rowCache.get(id) || {};
+                                  cached[field] = oldVal;
+                                  rowCache.set(id, cached);
+                                  try { row.reformat(); } catch(e) {}
+                              }
+                          });
+                    }
+                });
+            }
+
+            function savePartialUpdate(id, fields){
+                return fetch('/product/batch_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: [{ id, fields }] })
+                }).then(r => r.json()).then(d => {
+                    if (!d || d.success !== true) { throw new Error(d && d.message || '保存失败'); }
+                    return d;
+                });
+            }
+
+            function imageFormatter(cell){
+                const data = cell.getRow().getData();
+                const has = !!data.image_path;
+                const imgHtml = has
+                    ? `<img src="/uploads/thumb_${data.image_path}" class="thumb-fixed" onclick="openImageModalById(${data.id})">`
+                    : `<button class="btn btn-sm btn-outline-primary" onclick="openImageModalById(${data.id})">添加图片</button>`;
+                return `${imgHtml}`;
+            }
+
+            function openImageModalById(id){
+                currentImageRowId = id;
+                const data = getRowData(id);
+                const imgEl = document.getElementById('imageModalPreview');
+                const emptyEl = document.getElementById('imageModalEmpty');
+                if (!imgEl || !emptyEl || !imageModal) return;
+                if (data && data.image_path) {
+                    imgEl.src = `/uploads/${data.image_path}`;
+                    imgEl.classList.remove('d-none');
+                    emptyEl.classList.add('d-none');
+                    document.getElementById('btnModalAddOrChange').textContent = '更换图片';
+                    document.getElementById('btnModalDelete').classList.remove('d-none');
+                } else {
+                    imgEl.src = '';
+                    imgEl.classList.add('d-none');
+                    emptyEl.classList.remove('d-none');
+                    document.getElementById('btnModalAddOrChange').textContent = '添加图片';
+                    document.getElementById('btnModalDelete').classList.add('d-none');
+                }
+                imageModal.show();
+            }
+
+            function getRowData(id){
+                const row = todayGrid?.getRow(id);
+                return row ? row.getData() : rowCache.get(id);
+            }
+
+            function getRow(id){
+                return todayGrid?.getRow(id) || null;
+            }
+
+            function setRowImagePath(id, filename){
+                const row = getRow(id);
+                if (row) {
+                    row.update({ image_path: filename || null });
+                    if (typeof row.reformat === 'function') {
+                        try { row.reformat(); } catch(e) {}
+                    }
+                }
+                const d = rowCache.get(id) || {};
+                d.image_path = filename || null;
+                rowCache.set(id, d);
+                if (currentImageRowId === id) {
+                    // 同步弹框UI
+                    openImageModalById(id);
+                }
+            }
+
+            function triggerImagePick(id){
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = () => {
+                    const file = input.files && input.files[0];
+                    if (!file) return;
+                    const fd = new FormData();
+                    fd.append('id', String(id));
+                    fd.append('image', file);
+                    fetch('/product/update_image', { method: 'POST', body: fd })
+                      .then(r => r.json())
+                      .then(d => {
+                          if (!d.success) return showMessage(d.message || '图片更新失败', 'error');
+                          showMessage('图片更新成功', 'success');
+                          setRowImagePath(id, d.filename || null);
+                      })
+                      .catch(err => showMessage('图片更新失败: ' + err.message, 'error'));
+                };
+                input.click();
+            }
+
+            function deleteImageFromModal(id){
+                if (!confirm('确定删除该行图片？')) return;
+                const fd = new FormData();
+                fd.append('id', String(id));
+                fd.append('delete_image', '1');
+                fetch('/product/update_image', { method: 'POST', body: fd })
+                  .then(r => r.json())
+                  .then(d => {
+                      if (!d.success) return showMessage(d.message || '删除失败', 'error');
+                      showMessage('图片已删除', 'success');
+                      setRowImagePath(id, null);
+                  })
+                  .catch(err => showMessage('删除失败: ' + err.message, 'error'));
+            }
+
+            // 计算 & 格式化
+            function num(n){ const v = Number(n); return Number.isFinite(v) ? v : 0; }
+            function calcUnitPriceDiscounted(d){ return num(d.unit_price) * (num(d.unit_discount_rate) || 100) / 100.0; }
+            function calcAmount(d){ return calcUnitPriceDiscounted(d) * num(d.quantity); }
+            function calcAmountDiscounted(d){ return calcAmount(d) * (num(d.order_discount_rate) || 100) / 100.0; }
+            function calcReceivable(d){ return calcAmountDiscounted(d) + num(d.freight); }
+            function calcBalance(d){ return calcReceivable(d) - num(d.paid_total); }
+            function toFixed2(x){ return num(x).toFixed(2); }
+            function decimal2(cell){ const v = cell.getValue(); return toFixed2(v); }
+
+            function normalizeRow(p){
+                return Object.assign({}, p, {
+                    unit: (p.unit || p.spec || ''),
+                    unit_price: Number(p.unit_price ?? p.price ?? 0),
+                });
+            }
+
+            function refreshToday() {
+                // 直接拉取第一页数据，前端过滤当天
+                fetch('/product/list?page=1&per_page=200')
+                    .then(r => r.json())
+                    .then(d => {
+                        if (!d.success) return showMessage(d.message, 'error');
+                        const today = new Date().toISOString().slice(0, 10);
+                        const rows = (d.data.products || [])
+                          .filter(p => (p.create_time || '').slice(0,10) === today)
+                          .map(normalizeRow)
+                          .sort((a,b) => (b.create_time || '').localeCompare(a.create_time || ''));
+                        rowCache = new Map(rows.map(p => [p.id, { ...p }]));
+                        if (todayGrid) todayGrid.replaceData(rows);
+                    })
+                    .catch(err => showMessage('加载今日数据失败: ' + err.message, 'error'));
+            }
+
+            // ===== 下面保留原有表单/业务函数 =====
 
             function addProduct() {
                 const formData = new FormData(document.getElementById('productForm'));
@@ -338,78 +595,6 @@
                 ok = ok && !(price.value === '' || Number.isNaN(Number(price.value)) || Number(price.value) < 0);
 
                 return ok;
-            }
-
-            function refreshToday() {
-                // 直接拉取第一页数据，前端过滤当天
-                fetch('/product/list?page=1&per_page=200')
-                    .then(r => r.json())
-                    .then(d => {
-                        if (!d.success) return showMessage(d.message, 'error');
-                        const today = new Date().toISOString().slice(0, 10);
-                        const rows = (d.data.products || []).filter(p => (p.create_time || '').slice(0,10) === today);
-                        rows.sort((a,b) => (b.create_time || '').localeCompare(a.create_time || ''));
-                        renderToday(rows);
-                    })
-                    .catch(err => showMessage('加载今日数据失败: ' + err.message, 'error'));
-            }
-
-            function renderToday(products) {
-                const tbody = document.getElementById('todayTableBody');
-                tbody.innerHTML = '';
-                if (!products || products.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="25" class="text-center">今日暂无录入</td></tr>';
-                    return;
-                }
-                products.forEach(p => {
-                    const docDate = p.doc_date || (p.create_time || '').slice(0,10);
-                    const unitPrice = Number(p.unit_price ?? p.price ?? 0);
-                    const qty = Number(p.quantity ?? 0);
-                    const unitRate = Number(p.unit_discount_rate ?? 100);
-                    const priceDiscounted = unitPrice * unitRate / 100.0;
-                    const amount = (p.amount != null) ? Number(p.amount) : priceDiscounted * qty;
-                    const orderRate = Number(p.order_discount_rate ?? 100);
-                    const amountDiscounted = (p.amount_discounted != null) ? Number(p.amount_discounted) : amount * orderRate / 100.0;
-                    const freight = Number(p.freight ?? 0);
-                    const receivable = (p.receivable != null) ? Number(p.receivable) : (amountDiscounted + freight);
-                    const paidTotal = Number(p.paid_total ?? 0);
-                    const balance = (p.balance != null) ? Number(p.balance) : (receivable - paidTotal);
-
-                    const productDesc = p.product_desc || `${p.name || ''}${p.spec ? ' ' + p.spec : ''}`.trim();
-                    const unit = p.unit || p.spec || '';
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                      <td>${docDate || '-'}</td>
-                      <td>${p.customer_name || p.name || '-'}</td>
-                      <td>${productDesc || '-'}</td>
-                      <td>${unit || '-'}</td>
-                      <td>${qty || 0}</td>
-                      <td>${unitPrice.toFixed(2)}</td>
-                      <td>${unitRate.toFixed(2)}</td>
-                      <td>${priceDiscounted.toFixed(2)}</td>
-                      <td>${amount.toFixed(2)}</td>
-                      <td>${p.image_path ? `<img src="/uploads/thumb_${p.image_path}" class="product-image" onclick="viewImage('/uploads/${p.image_path}')">` : '<span class="text-muted">无</span>'}</td>
-                      <td>${p.remark || ''}</td>
-                      <td>${freight.toFixed(2)}</td>
-                      <td>${orderRate.toFixed(2)}</td>
-                      <td>${amountDiscounted.toFixed(2)}</td>
-                      <td>${receivable.toFixed(2)}</td>
-                      <td>${paidTotal.toFixed(2)}</td>
-                      <td>${balance.toFixed(2)}</td>
-                      <td>${p.settlement_account || ''}</td>
-                      <td>${p.description || ''}</td>
-                      <td>${p.salesperson || ''}</td>
-                      <td>${p.update_time || ''}</td>
-                      <td>${p.create_time || ''}</td>
-                      <td>
-                        <div class="btn-group btn-group-sm">
-                          <button class="btn btn-outline-primary" onclick="editProduct(${p.id}, '${p.name}', ${p.price}, ${p.quantity}, '${p.spec || ''}', '${p.image_path || ''}')"><i class="bi bi-pencil"></i></button>
-                          <button class="btn btn-outline-danger" onclick="deleteProduct(${p.id}, '${p.name}')"><i class="bi bi-trash"></i></button>
-                        </div>
-                      </td>`;
-                    tbody.appendChild(tr);
-                });
             }
 
             function recalc() {
@@ -510,4 +695,3 @@
         </script>
     </body>
 </html>
-
